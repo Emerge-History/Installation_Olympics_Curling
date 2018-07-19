@@ -123,28 +123,38 @@ for (var i = 0; i < MAX_LEN; i++) {
     }
 
     var randomColor = [0xa02f2e, 0xffffff];
-    var randomColor2 = [0xffffff,  0xa02f2e];
+    var randomColor2 = [0xffffff, 0xa02f2e];
     loop((t, dt) => {
 
         if (window.explode > 0) {
             window.explode--;
-            for (var i = 0; i < 300; i++) {
+            for (var i = 0; i < 500; i++) {
                 var q = pool.pop();
                 if (!q) break;
                 q.l = 1;
                 q.vl = Math.random() * 0.3 + 0.1;
                 q.inert = Math.random() * 0.1 + 0.9;
                 q.a = [0, 0];
-                q.p = [Math.random() * 30 - 15, Math.random() * 30 - 15];
+                var lr = Math.random() > 0.5 ? 1 : 0;
+
+                q.p = lr == 0 ?
+                    [-450, 0] :
+                    // [Math.random() * 30 - 15, Math.random() * 30 - 15]
+                    [450, 0]
+                    ;
                 q.r = Math.random() * Math.PI * 2;
                 q.vr = Math.random() - 0.5;
-                q.v = [Math.random() * 2000 - 1000, Math.random() * 2000 - 1000];
+
+                q.v = lr == 0 ?
+                    [(Math.random()) * 2000 - 300, Math.random() * 1500 - 1000]
+                    :
+                    [(Math.random()) * 2000 - 1700, Math.random() * 1500 - 1000];
                 q.flip = Math.random();
                 q.vflip = (Math.random() - 0.5) * 1;
-                q.sprite.sz = Math.pow(Math.random(), 7);
+                q.sprite.sz = Math.pow(Math.random(), 5);
                 q.sprite.width =
                     q.sprite.height =
-                    q.sprite.sz * 20 + 2;
+                    q.sprite.sz * 20 + 5;
                 q.tintq = Math.floor(Math.random() * randomColor.length);
                 ps.push(q);
             }
@@ -171,7 +181,7 @@ for (var i = 0; i < MAX_LEN; i++) {
             ps[i].sprite.scale.y = Math.sin(ps[i].flip) * ps[i].sprite.sz / 4;
             ps[i].sprite.skew.y = Math.sin(ps[i].flip * 2) * 1;
 
-            if(Math.sin(ps[i].flip * 2) < 0) {
+            if (Math.sin(ps[i].flip * 2) < 0) {
                 ps[i].sprite.tint = randomColor[ps[i].tintq];
             } else {
                 ps[i].sprite.tint = randomColor2[ps[i].tintq];
