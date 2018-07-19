@@ -1,6 +1,11 @@
 var w = 1920;
 var h = 1080;
 
+var mask = new PIXI.Graphics()
+mask.beginFill(0xffffff)
+mask.drawRect(0, 0, 38, 205)
+mask.endFill()
+
 var app = new PIXI.Application(w, h, { backgroundColor: 0x163772 });
 document.body.appendChild(app.view);
 
@@ -14,7 +19,7 @@ function loopStates(state) {
     loop((t) => {
         for (var i in state) {
             if (state["_" + i] != undefined) {
-                state["_" + i] += (state["_e_" + i] || 0.03) * (state[i] - state["_" + i]);
+                state["_" + i] += (state["_e_" + i] || 0.1) * (state[i] - state["_" + i]);
                 state["_" + i] = Math.abs((state[i] - state["_" + i])) < 0.0001 ? state[i] : state["_" + i];
             }
         }
@@ -43,7 +48,10 @@ scene.position.y = h / 2;
 
 var textures = {
     stone: "./assets/binghu-red/binghu0001.png",
+    shade: "./assets/shade.png",
     hand_push: "./assets/controller/an.png",
+    icon_handle: "./assets/controller/shoubing.png",
+    icon_platform: "./assets/controller/pingtai.png",
     hand_drag: "./assets/controller/shou.png",
     text_gameover: "./assets/controller/youxijieshu.png",
     text_joystick: "./assets/controller/shuabing.png",
@@ -83,32 +91,108 @@ for (var i in textures) {
 
 //controller
 {
-
     var controlstate = {
+
+        reset: 1,
+
         hint_angle: 0,
         _hint_angle: 0,
         _e_hint_angle: 0.1,
+
+        angle_selected: 0,
 
         last_drag: 0,
 
         angle: 0,
         _angle: 0,
-        _e_angle: 0.1
+        _e_angle: 0.1,
+
+        angle_enabled: 0,
+        _angle_enabled: 0,
+
+        selecting_power: 0,
+        _selecting_power: 0,
+        _e_selecting_power: 0.3,
+        power: 0,
+
+        ballY: 0,
+        _ballY: 0,
+
+        ball_enabled: 0,
+
+        launched: 0,
+        _launched: 0,
+
+
+        launch_hint: 0,
+        _launch_hint: 0,
+
+        power_hint: 0,
+        _power_hint: 0,
+
+        gameover: 0,
+        _gameover: 0,
+
+        gui: 0,
+        _gui: 0,
+
+        inactive: 0,
+        _inactive: 0,
+
     };
+
+    window.controlstate = controlstate;
 
     loopStates(controlstate);
 
     let ui = new PIXI.Container();
-    let bar_direction = new PIXI.Sprite(textures.bar_direction);
-    center(bar_direction, 0, -180);
 
+    let controllers = new PIXI.Container();
+    let joysticks = new PIXI.Container();
+    let ball_container = new PIXI.Container();
+    var gameover = new PIXI.Container();
+    let ball = new PIXI.Sprite(textures.stone);
+    let shade = new PIXI.Sprite(textures.shade);
+    center(ball);
+    center(shade, 30, 10);
+    shade.alpha = 0.5;
+    shade.height = 400;
+    shade.width = 400;
+    ball.height = 400;
+    ball.width = 400;
+    ball_container.addChild(shade);
+    ball_container.addChild(ball);
+
+
+
+    let angle_rotator = new PIXI.Container();
     let drag_dot_rotator = new PIXI.Container();
     let drag_dot_offset = new PIXI.Container();
     let drag_dot_hint = new PIXI.Container();
     let bar_direction_dot = new PIXI.Sprite(textures.drag_dot);
     let bar_direction_hint = new PIXI.Sprite(textures.drag_dot_hint);
     let bar_direction_touchhint = new PIXI.Sprite(textures.hand_drag);
+    let bar_direction = new PIXI.Sprite(textures.bar_direction);
+    let power_hint = new PIXI.Sprite(textures.hand_push);
 
+    center(power_hint);
+    position(power_hint, 0, 300);
+
+    center(bar_direction_dot);
+    center(bar_direction_hint);
+
+    position(drag_dot_offset, 0, -270);
+
+    drag_dot_offset.addChild(bar_direction_dot);
+    drag_dot_hint.addChild(bar_direction_touchhint);
+    drag_dot_hint.addChild(bar_direction_hint);
+    drag_dot_offset.addChild(drag_dot_hint);
+    drag_dot_rotator.addChild(drag_dot_offset);
+
+    center(bar_direction, 0, -180);
+
+    angle_rotator.addChild(bar_direction);
+    angle_rotator.addChild(drag_dot_rotator);
 
     let text_direction_touchhint = new PIXI.Sprite(textures.text_direction);
     let text_direction_start = new PIXI.Sprite(textures.text_start);
@@ -116,49 +200,246 @@ for (var i in textures) {
     let text_joystick = new PIXI.Sprite(textures.text_joystick);
     let text_release = new PIXI.Sprite(textures.text_release);
     let text_gameover = new PIXI.Sprite(textures.text_gameover);
+
+    gameover.addChild(text_gameover);
+
+    let joystick_handle1 = new PIXI.Sprite(textures.icon_handle);
+    let joystick_handle2 = new PIXI.Sprite(textures.icon_handle);
+    let joystick_platform = new PIXI.Sprite(textures.icon_platform);
+
+    let bar_power = new PIXI.Sprite(textures.bar_power);
+    let bar_power_fill = new PIXI.Sprite(textures.bar_power_fill);
+    let bar_power_ticks = new PIXI.Sprite(textures.bar_power_ticks);
+    let bar_power_lightning = new PIXI.Sprite(textures.icon_power);
+
+    bar_power_fill.addChild(mask);
+    bar_power_fill.mask = mask;
+
+    bar_power.addChild(bar_power_lightning);
+    bar_power.addChild(bar_power_fill);
+    bar_power.addChild(bar_power_ticks);
+
+    center(bar_power, 0, -45);
+    center(bar_power_lightning, 0, -150);
+    center(bar_power_fill);
+    center(bar_power_ticks);
+
     center(text_joystick, 0, 390);
-    center(text_release, 0, -400);
+    center(text_release, 0, -420);
     center(text_direction_touchhint, 0, -412);
     center(text_direction_start, 0, -420);
     center(text_before_release, 0, -420);
     center(text_gameover, 0, -280);
-    ui.addChild(text_joystick);
+
+    // let joystickPointer1 = new PIXI.Sprite(textures.tick_down);
+    // let joystickPointer2 = new PIXI.Sprite(textures.tick_down);
+
+    // let joystick_icon = new PIXI.Sprite(textures.icon_joystick);
+    // center(joystick_icon, 0, -280);
+    joysticks.position.y = -300;
+
+    joystick_handle1.anchor.x = 0.5;
+    joystick_handle2.anchor.x = 0.5;
+    joystick_handle1.anchor.y = 1;
+    joystick_handle2.anchor.y = 1;
+
+    joystick_handle1.position.x = -57;
+    joystick_handle2.position.x = 57;
+    joystick_handle1.position.y = -5;
+    joystick_handle2.position.y = -5;
+
+    center(joystick_platform, 0, 25);
+    joystick_platform.anchor.y = 1;
+
+    joysticks.addChild(joystick_platform);
+    joysticks.addChild(joystick_handle1);
+    joysticks.addChild(joystick_handle2);
+
+    ui.addChild(text_release);
     ui.addChild(text_before_release);
     ui.addChild(text_direction_touchhint);
     ui.addChild(text_direction_start);
     ui.addChild(text_gameover);
+    ui.addChild(text_joystick);
+
+
+    controllers.addChild(bar_power);
+    controllers.addChild(angle_rotator);
+
+    ui.addChild(controllers);
+    ui.addChild(joysticks);
 
     loop((t) => {
-        controlstate.hint_angle = Date.now() - controlstate.last_drag > 1000 ? 1 : 0;
 
-        bar_direction_hint.alpha = (Math.sin(t * 3) * 0.5 + 0.5) * controlstate._hint_angle;
-        bar_direction_touchhint.alpha = (Math.sin(t * 10) * 0.2 + 0.6) * controlstate._hint_angle;
+        if (controlstate.newgame || controlstate.reset || controlstate.gameover) {
+            controlstate.angle_enabled = 0;
+            controlstate.last_drag = 0;
+            controlstate.ball_enabled = 0;
+            controlstate.launched = 0;
+            controlstate.power = 0;
+            controlstate.selecting_power = 0;
+            controlstate.angle_selected = 0;
+            controlstate.hint_angle = 0;
+            controlstate._hint_angle = 0;
+            controlstate.launch_hint = 0;
+            controlstate._launch_hint = 0;
+            controlstate._power_hint = 0;
+            controlstate.power_hint = 0;
+            controlstate.ballY = 800;
+            controlstate._ballY = 800;
+            controlstate.angle = controlstate._angle = 0;
+            controlstate.gui = 0;
+            if (controlstate.reset) {
+                controlstate.gameover = 0;
+                controlstate._gameover = 0;
+
+                controlstate.inactive = 1;
+            }
+            if (controlstate.newgame) {
+                controlstate.inactive = 0;
+                controlstate._inactive = 0;
+                controlstate.gameover = 0;
+                controlstate._gameover = 0;
+                controlstate.gui = 1;
+                controlstate.angle_enabled = 1;
+                controlstate.ball_enabled = 1;
+            }
+            controlstate.reset = 0;
+            controlstate.newgame = 0;
+        }
+
+
+        if (!controlstate.gameover && controlstate.ball_enabled && !controlstate.launched && !controlstate.selecting_power && controlstate.angle_selected) {
+            controlstate.power_hint = 1;
+        }
+        else {
+            controlstate.power_hint = 0;
+        }
+
+        if (controlstate.selecting_power) {
+            controlstate.launch_hint = 1;
+        }
+        else {
+            controlstate.launch_hint = 0;
+        }
+
+        if (controlstate.selecting_power) {
+            controlstate.ballY = 250;
+
+        } else if (controlstate.ball_enabled) {
+            controlstate.ballY = 350;
+        } else if (controlstate.launched) {
+            controlstate.ballY = 250 - controlstate._launched * 1000;
+        } else {
+            controlstate.ballY = controlstate._ballY = 800;
+        }
+
+        ball_container.position.y = controlstate._ballY;
+        controlstate.hint_angle = controlstate.gui * (!controlstate.angle_selected && !controlstate.selecting_power && !controlstate.launched) ? 1 : 0;
+
+        bar_direction_hint.alpha = (Math.sin(t * 3) * 0.5 + 0.5) * controlstate._hint_angle * controlstate._angle_enabled;
+        bar_direction_touchhint.alpha = (Math.sin(t * 10) * 0.2 + 0.6) * controlstate._hint_angle * controlstate._angle_enabled;
+
+        angle_rotator.alpha = (controlstate._angle_enabled) + 0.3;
 
         bar_direction_touchhint.position.x = -30 + Math.sin(t * 4) * 30;
         bar_direction_touchhint.position.y = -Math.abs(Math.cos(t * 4) * 10);
         drag_dot_rotator.rotation = controlstate._angle;
+
+        if (controlstate.selecting_power > 0) {
+            controlstate.power = 0.5 + 0.5 * Math.sin(t * 1);
+        }
+
+        bar_power.alpha = controlstate._selecting_power;
+        controllers.alpha = (1 - controlstate._launched) * controlstate.gui;
+        position(mask, -38 / 2, 205 / 2 - 205 * controlstate.power);
+
+        power_hint.alpha = controlstate.power_hint;
+        power_hint.scale.x = 1 + Math.sin(t * 7) * 0.05;
+        power_hint.scale.y = 1 + Math.sin(t * 7) * 0.05;
+
+        text_before_release.alpha = controlstate.power_hint;
+        text_direction_start.alpha = 0;// controlstate._hint_angle;
+        text_gameover.alpha = 0;
+
+        text_direction_touchhint.alpha = controlstate._hint_angle;
+        text_release.alpha = controlstate.launch_hint;
+
+        joystick_handle1.rotation = Math.sin(t * 20) * 0.2;
+        joystick_handle2.rotation = Math.cos(t * 20) * 0.2;
+        joysticks.rotation = Math.sin(t * 10) * 0.1;
+        text_joystick.alpha = joysticks.alpha = controlstate._launched; //controlstate.launched;
+
+        text_direction_start.alpha = controlstate._inactive * (Math.sin(t * 10) * 0.2 + 0.8);
+        gameover.alpha = controlstate._gameover;
     });
+
+    ball.interactive = true;
+    ball.start = () => {
+        if (!controlstate.ball_enabled) return;
+        this.pushed = true;
+        controlstate.selecting_power = 1;
+        controlstate.ball_enabled = 0;
+        controlstate.angle_enabled = 0;
+    };
+
+    ball.end = () => {
+        if (this.pushed) {
+            this.pushed = false;
+            controlstate.selecting_power = 0;
+            controlstate.ball_enabled = 0;
+            controlstate.launched = 1;
+            controlstate.angle_enabled = 0;
+        }
+    };
+
+    ball.move = () => {
+        if (this.pushed) {
+            controlstate.selecting_power = 1;
+            controlstate.ball_enabled = 0;
+            controlstate.angle_enabled = 0;
+        }
+    };
+
+    ball
+        // events for drag start
+        .on('mousedown', ball.start)
+        .on('touchstart', ball.start)
+        // events for drag end
+        .on('mouseup', ball.end)
+        .on('mouseupoutside', ball.end)
+        .on('touchend', ball.end)
+        .on('touchendoutside', ball.end)
+        // events for drag move
+        .on('mousemove', ball.move)
+        .on('touchmove', ball.move);
+
+
+
     bar_direction_dot.interactive = true;
 
 
     bar_direction_dot.start = () => {
+        if (!controlstate.angle_enabled) return;
         this.dragging = true;
         controlstate.last_drag = Date.now();
     };
     bar_direction_dot.end = () => {
+        if (!controlstate.angle_enabled) return;
         this.dragging = false;
+        controlstate.angle_selected = 1;
         controlstate.last_drag = Date.now();
     };
     bar_direction_dot.move = (e) => {
+        if (!controlstate.angle_enabled) return;
         if (this.dragging) {
             controlstate.last_drag = Date.now();
             var deg = Math.atan2(e.data.global.y - h / 2, e.data.global.x - w / 2);
-            console.log(deg);
             if (deg > Math.PI / 2) {
                 deg = -deg;
             }
             deg += 3.14 / 2;
-            controlstate.angle = Math.min(0.6, Math.max(deg, -0.6));
+            controlstate.angle = Math.min(0.5, Math.max(deg, -0.5));
         }
     };
 
@@ -176,19 +457,10 @@ for (var i in textures) {
         .on('touchmove', bar_direction_dot.move);
 
 
-    center(bar_direction_dot);
-    center(bar_direction_hint);
 
-    position(drag_dot_offset, 0, -270);
 
-    drag_dot_offset.addChild(bar_direction_dot);
-    drag_dot_hint.addChild(bar_direction_touchhint);
-    drag_dot_hint.addChild(bar_direction_hint);
-    drag_dot_offset.addChild(drag_dot_hint);
-    drag_dot_rotator.addChild(drag_dot_offset);
-
-    ui.addChild(bar_direction);
-    ui.addChild(drag_dot_rotator);
+    ui.addChild(ball_container);
+    ui.addChild(power_hint);
     scene.addChild(ui);
 }
 
