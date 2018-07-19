@@ -7,6 +7,8 @@ document.body.appendChild(app.view);
 var textures = {
     red: []
 };
+
+
 for (var i in textures) {
     for (var j = 1; j <= 360; j++) {
         textures.red.push(
