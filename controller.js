@@ -16,7 +16,7 @@ function loop(updateFunction) {
 }
 
 function loopStates(state) {
-    loop((t) => {
+    loop((t, dt) => {
         for (var i in state) {
             if (state["_" + i] != undefined) {
                 state["_" + i] += (state["_e_" + i] || 0.1) * (state[i] - state["_" + i]);
@@ -47,6 +47,7 @@ scene.position.x = w / 2;
 scene.position.y = h / 2;
 
 var textures = {
+    square: "./assets/square.png",
     stone: "./assets/binghu-red/binghu0001.png",
     shade: "./assets/shade.png",
     hand_push: "./assets/controller/an.png",
@@ -79,7 +80,6 @@ for (var i in textures) {
 }
 
 /**Build da scene */
-
 //bg
 {
     let bg = new PIXI.Container();
@@ -89,10 +89,112 @@ for (var i in textures) {
     scene.addChild(bg);
 }
 
+var particles = new PIXI.Container();
+var MAX_LEN = 10000;
+var particlesArr = [];
+
+for (var i = 0; i < MAX_LEN; i++) {
+    var p = new PIXI.Sprite(textures.square);
+    p.alpha = 0;
+    p.width = 15;
+    p.height = 15;
+    p.anchor.x = 0.5;
+    p.anchor.y = 0.5;
+    particlesArr.push(p);
+    particles.addChild(p);
+}
+
+// particle
+{
+
+    //confetti
+    var ps = [];
+    var pool = [];
+
+    for (var i = 0; i < MAX_LEN; i++) {
+        pool.push({
+            sprite: particlesArr[i],
+            a: [0, 0],
+            p: [0, 0],
+            v: [0, 0],
+            l: 0,
+            vl: 0.5
+        });
+    }
+
+    var randomColor = [0xa02f2e, 0xffffff];
+    var randomColor2 = [0xffffff,  0xa02f2e];
+    loop((t, dt) => {
+
+        if (window.explode > 0) {
+            window.explode--;
+            for (var i = 0; i < 300; i++) {
+                var q = pool.pop();
+                if (!q) break;
+                q.l = 1;
+                q.vl = Math.random() * 0.3 + 0.1;
+                q.inert = Math.random() * 0.1 + 0.9;
+                q.a = [0, 0];
+                q.p = [Math.random() * 30 - 15, Math.random() * 30 - 15];
+                q.r = Math.random() * Math.PI * 2;
+                q.vr = Math.random() - 0.5;
+                q.v = [Math.random() * 2000 - 1000, Math.random() * 2000 - 1000];
+                q.flip = Math.random();
+                q.vflip = (Math.random() - 0.5) * 1;
+                q.sprite.sz = Math.pow(Math.random(), 7);
+                q.sprite.width =
+                    q.sprite.height =
+                    q.sprite.sz * 20 + 2;
+                q.tintq = Math.floor(Math.random() * randomColor.length);
+                ps.push(q);
+            }
+        }
+
+        var good = [];
+        var bad = pool;
+
+
+        for (var i = 0; i < ps.length; i++) {
+            ps[i].l -= ps[i].vl * dt;
+            ps[i].sprite.alpha = Math.max(0, ps[i].l);
+            if (ps[i].l > 0) {
+                good.push(ps[i]);
+            } else {
+                bad.push(ps[i]);
+                continue;
+            }
+            ps[i].a[0] = 0;
+            ps[i].a[1] = ps[i].sprite.sz * 300;
+            ps[i].r += ps[i].vr * dt;
+            ps[i].flip += ps[i].vflip;
+
+            ps[i].sprite.scale.y = Math.sin(ps[i].flip) * ps[i].sprite.sz / 4;
+            ps[i].sprite.skew.y = Math.sin(ps[i].flip * 2) * 1;
+
+            if(Math.sin(ps[i].flip * 2) < 0) {
+                ps[i].sprite.tint = randomColor[ps[i].tintq];
+            } else {
+                ps[i].sprite.tint = randomColor2[ps[i].tintq];
+            }
+
+            for (var j = 0; j < 2; j++) {
+                ps[i].v[j] += ps[i].a[j] * dt;
+                ps[i].v[j] *= ps[i].inert;
+                ps[i].p[j] += ps[i].v[j] * dt;
+            }
+
+            ps[i].sprite.rotation = ps[i].r;
+            ps[i].sprite.position.x = ps[i].p[0];
+            ps[i].sprite.position.y = ps[i].p[1];
+        }
+        ps = good;
+        pool = bad;
+    });
+}
+
 //controller
 {
     var controlstate = {
-
         reset: 1,
 
         hint_angle: 0,
@@ -123,7 +225,6 @@ for (var i in textures) {
         launched: 0,
         _launched: 0,
 
-
         launch_hint: 0,
         _launch_hint: 0,
 
@@ -140,6 +241,12 @@ for (var i in textures) {
         _inactive: 0,
 
     };
+
+    document.body.addEventListener("touchstart", () => {
+        if (controlstate.inactive) {
+            controlstate.newgame = 1;
+        }
+    });
 
     window.controlstate = controlstate;
 
@@ -162,7 +269,6 @@ for (var i in textures) {
     ball.width = 400;
     ball_container.addChild(shade);
     ball_container.addChild(ball);
-
 
 
     let angle_rotator = new PIXI.Container();
@@ -200,7 +306,11 @@ for (var i in textures) {
     let text_joystick = new PIXI.Sprite(textures.text_joystick);
     let text_release = new PIXI.Sprite(textures.text_release);
     let text_gameover = new PIXI.Sprite(textures.text_gameover);
+    let btn_gameover = new PIXI.Sprite(textures.btn_retry);
 
+    center(text_gameover);
+    center(btn_gameover, 0, 280);
+    gameover.addChild(btn_gameover);
     gameover.addChild(text_gameover);
 
     let joystick_handle1 = new PIXI.Sprite(textures.icon_handle);
@@ -259,7 +369,6 @@ for (var i in textures) {
     ui.addChild(text_before_release);
     ui.addChild(text_direction_touchhint);
     ui.addChild(text_direction_start);
-    ui.addChild(text_gameover);
     ui.addChild(text_joystick);
 
 
@@ -269,7 +378,15 @@ for (var i in textures) {
     ui.addChild(controllers);
     ui.addChild(joysticks);
 
+    var _prevGameover = 0;
     loop((t) => {
+
+        if (_prevGameover != controlstate.gameover) {
+            if (controlstate.gameover == 1) {
+                window.explode = 10;
+            }
+            _prevGameover = controlstate.gameover;
+        }
 
         if (controlstate.newgame || controlstate.reset || controlstate.gameover) {
             controlstate.angle_enabled = 0;
@@ -292,8 +409,11 @@ for (var i in textures) {
             if (controlstate.reset) {
                 controlstate.gameover = 0;
                 controlstate._gameover = 0;
-
                 controlstate.inactive = 1;
+            }
+            if (controlstate.gameover) {
+                controlstate.inactive = 0;
+                controlstate._inactive = 0;
             }
             if (controlstate.newgame) {
                 controlstate.inactive = 0;
@@ -360,7 +480,7 @@ for (var i in textures) {
 
         text_before_release.alpha = controlstate.power_hint;
         text_direction_start.alpha = 0;// controlstate._hint_angle;
-        text_gameover.alpha = 0;
+        // text_gameover.alpha = 0;
 
         text_direction_touchhint.alpha = controlstate._hint_angle;
         text_release.alpha = controlstate.launch_hint;
@@ -368,10 +488,14 @@ for (var i in textures) {
         joystick_handle1.rotation = Math.sin(t * 20) * 0.2;
         joystick_handle2.rotation = Math.cos(t * 20) * 0.2;
         joysticks.rotation = Math.sin(t * 10) * 0.1;
+
         text_joystick.alpha = joysticks.alpha = controlstate._launched; //controlstate.launched;
 
         text_direction_start.alpha = controlstate._inactive * (Math.sin(t * 10) * 0.2 + 0.8);
         gameover.alpha = controlstate._gameover;
+
+
+
     });
 
     ball.interactive = true;
@@ -456,19 +580,32 @@ for (var i in textures) {
         .on('mousemove', bar_direction_dot.move)
         .on('touchmove', bar_direction_dot.move);
 
+    btn_gameover.interactive = true;
+    btn_gameover.reset = () => {
+        if (controlstate.gameover) {
+            controlstate.newgame = 1;
+        }
+    };
+    btn_gameover.on("mouseup", btn_gameover.reset);
+    btn_gameover.on("touchend", btn_gameover.reset);
 
-
-
+    ui.addChild(gameover);
     ui.addChild(ball_container);
     ui.addChild(power_hint);
+
+
     scene.addChild(ui);
 }
 
+scene.addChild(particles);
 
+var prevT = Date.now();
 function update() {
     var t = Date.now() / 1000;
+    var dt = t - prevT;
+    prevT = t;
     for (var i = 0; i < updatables.length; i++) {
-        updatables[i](t);
+        updatables[i](t, dt);
     }
     requestAnimationFrame(update);
 }
