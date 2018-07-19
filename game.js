@@ -114,7 +114,7 @@ app.stage.addChild(container);
 
 
 var Engine = Matter.Engine,
-    Render = Matter.Render,
+    // Render = Matter.Render,
     Runner = Matter.Runner,
     Mouse = Matter.Mouse,
     World = Matter.World,
@@ -125,16 +125,16 @@ var engine = Engine.create(),
     world = engine.world;
 
 // create renderer
-var render = Render.create({
-    engine: engine,
-    options: {
-        width: w,
-        height: h,
-        showVelocity: true
-    }
-});
+// var render = Render.create({
+//     engine: engine,
+//     options: {
+//         width: w,
+//         height: h,
+//         showVelocity: true
+//     }
+// });
 
-Render.run(render);
+// Render.run(render);
 
 var runner = Runner.create();
 // Runner.run(runner, engine);
@@ -192,7 +192,6 @@ function update(n) {
     let rot = Math.floor(Math.abs(world.bodies[0].angle / Math.PI * 180)) % 360;
     box.rotation = -unmod / 180 * Math.PI;
     box.texture = textures.red[rot];
-
 
     let unmod2 = Math.abs(world.bodies[1].angle / Math.PI * 180) % 1;
     let rot2 = Math.floor(Math.abs(world.bodies[1].angle / Math.PI * 180)) % 360;
