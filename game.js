@@ -48,7 +48,7 @@ box2.shade.alpha = 0.4;
 {
     var texture_grid = PIXI.Texture.fromImage("./assets/crossbig.png");
     var grid = new PIXI.Container();
-    var gridSize = 32;
+    var gridSize = 64;
     var gen_grid = [];
     for (var x = gridSize; x < w; x += gridSize * 3) {
         for (var y = gridSize; y < h; y += gridSize * 3) {
