@@ -1,7 +1,49 @@
-class Vec2 {
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
+const binghuNames = [];
+const binghuColors = ["red"];
+const binghuKV = {};
+
+var updatables = [];
+for (let i = 1; i <= 360; i++) {
+  binghuColors.forEach(color => {
+    if (!binghuKV[color]) {
+      binghuKV[color] = [];
+    }
+    const name =
+      "./assets/binghu-" + color + "/binghu" + (i + "").padStart(4, 0) + ".png";
+    binghuNames.push(name);
+    binghuKV[color][i - 1] = name;
+  });
+}
+
+PIXI.loader
+  .add([
+    "./assets/circle.png",
+    "./assets/shade.png",
+    "./assets/crossbig.png",
+    "./assets/track.png",
+    "./assets/aim.png",
+    ...binghuNames
+  ]).load(setup);
+
+Engine = Matter.Engine;
+Runner = Matter.Runner;
+Mouse = Matter.Mouse;
+World = Matter.World;
+Bodies = Matter.Bodies;
+runner = Runner.create();
+engine = Engine.create();
+world = engine.world;
+world.gravity.y = 0;
+
+function center(b, x, y) {
+  b.anchor.x = b.anchor.y = 0.5;
+  position(b, x, y);
+}
+
+function position(b, x, y) {
+  if (x || y) {
+    b.position.x = x;
+    b.position.y = y;
   }
 }
 
@@ -9,45 +51,184 @@ const resources = PIXI.loader.resources;
 const width = 1920;
 const height = 6480;
 
+var centerPosition = {
+  x: width / 2,
+  y: 1300
+}
+
 const app = new PIXI.Application({
   width,
   height,
   backgroundColor: 0xffffff
 });
-
-const state = {
-  color: ["red", "blue"]
-};
-
 document.body.appendChild(app.view);
 
 const container = new PIXI.Container();
+var ballsContainer = new PIXI.Container();
 app.stage.addChild(container);
 
+var turn = [
+  {
+    x: 0, //Math.sin(Date.now() / 1000) * 30,
+    y: 0, //5 * 1.5,
+    a: 0
+  },
+  {
+    x: -0,
+    y: 0, //5 * 2.5,
+    a: 0
+  }
+];
+
+const u = -0.001;
+class CurlingBall {
+  constructor() {
+    this.isPlayer = false;
+
+    this.color = "red";
+    this.texture = resources[binghuKV[this.color][0]].texture;
+    this.container = new PIXI.Container();
+
+    this.sprite = new PIXI.Sprite(this.texture);
+    this.shade = new PIXI.Sprite(resources["./assets/shade.png"].texture);
+    this.shade.blendMode = PIXI.BLEND_MODES.MULTIPLY;
+    this.shade.width = this.shade.height = 335;
+    this.shade.position.x = 40;
+    this.sprite.width = this.sprite.height = 335;
+
+    center(this.shade, 0, 0);
+    center(this.sprite, 0, 0);
+
+    this.container.addChild(this.sprite);
+    this.container.addChild(this.shade);
+
+    ballsContainer.addChild(this.container);
+
+    this.shade.alpha = 0.4;
+
+    this.body = Bodies.circle(0, 0, 150, {
+      frictionAir: 0.0,
+      restitution: 0.5,
+      friction: 0
+    });
+
+    World.add(world, this.body);
+
+    this.life = 1;
+    this._life = 1;
+
+    this.updatable = this.update.bind(this);
+    updatables.push(this.updatable);
+  }
+
+  score() {
+    return Matter.Vector.magnitude(Matter.Vector.sub(this.body.position, centerPosition));
+  }
+
+  isOutside() {
+    return this.body.position.x < -400 || this.body.position.y < -400
+      || this.body.position.x > width + 400 || this.body.position.y > height + 800
+  }
+
+  isStoppedOrOutside() {
+    if (Matter.Vector.magnitude(this.body.velocity) < 0.1 ||
+      this.isOutside()) {
+      return true;
+    }
+    return false;
+  }
+
+  setPosition(x, y) {
+    Matter.Body.setPosition(this.body, {
+      x: x, y: y
+    })
+  }
+
+  update(t, dt) {
+    this._life += (this.life - this._life) * 0.1;
+    this.container.alpha = this._life;
+    
+    if(this.isOutside()) {
+      this.life = 0;
+    }
+
+    if (this._life <= 0.1) {
+      ballsContainer.removeChild(this.container);
+      this.isPlayer = false;
+      this.updatable.remove = true;
+    }
+
+    if (this.life == 0) {
+      World.remove(world, this.body);
+    }
+
+    this.container.position.x = this.body.position.x;
+    this.container.position.y = this.body.position.y;
+
+    if (this.isPlayer) {
+
+      let unmod = Math.abs((this.body.angle / Math.PI) * 180) % 1;
+      let rot = Math.floor(Math.abs((this.body.angle / Math.PI) * 180)) % 360;
+      this.sprite.rotation = (-unmod / 180) * Math.PI;
+      this.sprite.texture = resources[binghuKV[this.color][rot]].texture;
+
+      turn[0].a = Matter.Vector.angle(this.body.velocity, turn[0]);
+      turn[1].a = Matter.Vector.angle(this.body.velocity, turn[1]);
+
+      turn[0].a = Math.min(Math.PI / 4, Math.max(turn[0].a, -Math.PI / 4));
+      turn[1].a = Math.min(Math.PI / 4, Math.max(turn[1].a, -Math.PI / 4));
+
+      turn[0].a = Math.max(0, Math.pow(Math.cos(turn[0].a), 2));
+      turn[1].a = Math.max(0, Math.pow(Math.cos(turn[1].a), 2));
+
+      turn[0] = Matter.Vector.mult(turn[0], turn[0].a);
+      turn[1] = Matter.Vector.mult(turn[1], turn[1].a);
+
+      var mod = Matter.Vector.add(turn[0], turn[1]);
+
+      var friction = {
+        x: u * this.body.velocity.x,
+        y: u * this.body.velocity.y
+      };
+
+      mod = Matter.Vector.mult(mod, -0.03 * Matter.Vector.magnitude(friction));
+      friction = Matter.Vector.add(friction, mod);
+
+      Matter.Body.applyForce(
+        this.body,
+        { x: this.body.position.x, y: this.body.position.y },
+        friction
+      );
+      Matter.Body.setAngularVelocity(
+        this.body,
+        this.body.angularVelocity * 0.995
+      );
+    } else {
+      var friction = {
+        x: u * this.body.velocity.x,
+        y: u * this.body.velocity.y
+      };
+      Matter.Body.applyForce(
+        this.body,
+        { x: this.body.position.x, y: this.body.position.y },
+        friction
+      );
+      Matter.Body.setAngularVelocity(
+        this.body,
+        this.body.angularVelocity * 0.995
+      );
+    }
+  }
+}
+
+var game = {
+  balls: [],
+  state: {
+
+  }
+}
+
 function setup() {
-  var box = new PIXI.Sprite(resources[bunghuKV[state.color[0]][0]].texture);
-  var box2 = new PIXI.Sprite(resources[bunghuKV[state.color[1]][0]].texture);
-
-  box.shade = new PIXI.Sprite(resources["./assets/shade.png"].texture);
-  box2.shade = new PIXI.Sprite(resources["./assets/shade.png"].texture);
-
-  box.shade.blendMode = PIXI.BLEND_MODES.MULTIPLY;
-  box2.shade.blendMode = PIXI.BLEND_MODES.MULTIPLY;
-
-  box.anchor.x = box.anchor.y = 0.5;
-  box2.anchor.x = box2.anchor.y = 0.5;
-
-  box.shade.anchor.x = box.shade.anchor.y = 0.5;
-  box2.shade.anchor.x = box2.shade.anchor.y = 0.5;
-
-  box.width = box.height = 335;
-  box2.width = box2.height = 335;
-
-  box.shade.width = box.shade.height = 335;
-  box2.shade.width = box2.shade.height = 335;
-
-  box.shade.alpha = 0.4;
-  box2.shade.alpha = 0.4;
 
   //generative
   {
@@ -71,11 +252,12 @@ function setup() {
         grid.addChild(sprite_grid);
       }
     }
+    container.addChild(grid);
   }
 
+  //dots
   {
     const colors = [0xe75b80, 0x409edb, 0xf7ca00, 0xffffff];
-
     class Mouse {
       constructor() {
         this.pos = new Vec2(0, 0);
@@ -174,8 +356,6 @@ function setup() {
     container.addChild(ds.pixiContainer);
   }
 
-  container.addChild(grid);
-
   //track
   {
     var track = new PIXI.Container();
@@ -194,213 +374,25 @@ function setup() {
     container.addChild(track);
   }
 
-  container.addChild(box.shade);
-  container.addChild(box2.shade);
-  container.addChild(box);
-  container.addChild(box2);
-
-  var Engine = Matter.Engine,
-    // Render = Matter.Render,
-    Runner = Matter.Runner,
-    Mouse = Matter.Mouse,
-    World = Matter.World,
-    Bodies = Matter.Bodies;
-
-  // create engine
-  var engine = Engine.create(),
-    world = engine.world;
-
-  // create renderer
-  // var render = Render.create({
-  //     engine: engine,
-  //     options: {
-  //         width: width,
-  //         height: height,
-  //         showVelocity: true
-  //     }
-  // });
-
-  // Render.run(render);
-
-  var runner = Runner.create();
-  // Runner.run(runner, engine);
-
-  world.gravity.y = 0;
-  World.add(world, [
-    // falling blocks
-    Bodies.circle(width / 2, height + 300, 150, {
-      frictionAir: 0.0,
-      restitution: 0.5,
-      friction: 0
-    }),
-    Bodies.circle(width / 2 - 30, 600, 150, {
-      frictionAir: 0.0,
-      restitution: 0.5,
-      friction: 0
-    })
-  ]);
-
-
-
-
-  window.test = function() {
-    Matter.Body.applyForce(
-        world.bodies[0],
-        { x: world.bodies[0].position.x, y: world.bodies[0].position.y },
-        {
-          x: 0,
-          y: -3.3
-        }
-      );
-      Matter.Body.setAngularVelocity(world.bodies[0], (Math.random() - 0.5) * 0.1);
-      Matter.Body.setAngularVelocity(world.bodies[1], 0.01);
-  }
-  
-
-
   var time = 0;
   function update(n) {
     var delta = Date.now() - time;
     time = Date.now();
     Runner.tick(runner, engine, delta);
-
-    box.position.x = world.bodies[0].position.x;
-    box.position.y = world.bodies[0].position.y;
-
-    box.shade.position.x = box.position.x + 40;
-    box.shade.position.y = box.position.y;
-
-    box2.position.x = world.bodies[1].position.x;
-    box2.position.y = world.bodies[1].position.y;
-
-    box2.shade.position.x = box2.position.x + 40;
-    box2.shade.position.y = box2.position.y;
-
-    let unmod = Math.abs((world.bodies[0].angle / Math.PI) * 180) % 1;
-    let rot =
-      Math.floor(Math.abs((world.bodies[0].angle / Math.PI) * 180)) % 360;
-    box.rotation = (-unmod / 180) * Math.PI;
-    box.texture = resources[bunghuKV[state.color[0]][rot]].texture;
-
-    let unmod2 = Math.abs((world.bodies[1].angle / Math.PI) * 180) % 1;
-    let rot2 =
-      Math.floor(Math.abs((world.bodies[1].angle / Math.PI) * 180)) % 360;
-    box2.rotation = (-unmod2 / 180) * Math.PI;
-    box2.texture = resources[bunghuKV[state.color[1]][rot2]].texture;
-
-    let turn = [
-      {
-        x: 0, //Math.sin(Date.now() / 1000) * 30,
-        y: 0, //5 * 1.5,
-        a: 0
-      },
-      {
-        x: -0 * 2.5,
-        y: 0, //5 * 2.5,
-        a: 0
+    var nextUpdatables = [];
+    for (var i = 0; i < updatables.length; i++) {
+      if (!updatables[i].remove) {
+        updatables[i](time, delta);
+        nextUpdatables.push(updatables[i]);
       }
-    ];
-
-    //friction
-
-    var vb = Matter.Vector.magnitude(world.bodies[0].velocity);
-
-    turn[0].a = Matter.Vector.angle(world.bodies[0].velocity, turn[0]);
-    turn[1].a = Matter.Vector.angle(world.bodies[0].velocity, turn[1]);
-
-    turn[0].a = Math.min(Math.PI / 4, Math.max(turn[0].a, -Math.PI / 4));
-    turn[1].a = Math.min(Math.PI / 4, Math.max(turn[1].a, -Math.PI / 4));
-
-    turn[0].a = Math.max(0, Math.pow(Math.cos(turn[0].a), 2));
-    turn[1].a = Math.max(0, Math.pow(Math.cos(turn[1].a), 2));
-
-    turn[0] = Matter.Vector.mult(turn[0], turn[0].a);
-    turn[1] = Matter.Vector.mult(turn[1], turn[1].a);
-
-    var mod = Matter.Vector.add(turn[0], turn[1]);
-
-    var u = -0.001;
-    var friction = {
-      x: u * world.bodies[0].velocity.x,
-      y: u * world.bodies[0].velocity.y
-    };
-
-    mod = Matter.Vector.mult(mod, -0.03 * Matter.Vector.magnitude(friction));
-
-    friction = Matter.Vector.add(friction, mod);
-
-    Matter.Body.applyForce(
-      world.bodies[0],
-      { x: world.bodies[0].position.x, y: world.bodies[0].position.y },
-      friction
-    );
-    Matter.Body.setAngularVelocity(
-      world.bodies[0],
-      world.bodies[0].angularVelocity * 0.995
-    );
-
-    var friction = {
-      x: u * world.bodies[1].velocity.x,
-      y: u * world.bodies[1].velocity.y
-    };
-    Matter.Body.applyForce(
-      world.bodies[1],
-      { x: world.bodies[1].position.x, y: world.bodies[1].position.y },
-      friction
-    );
-    Matter.Body.setAngularVelocity(
-      world.bodies[1],
-      world.bodies[1].angularVelocity * 0.995
-    );
-
-    // for (var i = 0; i < gen_grid.length; i++) {
-    //     var cur = gen_grid[i];
-    //     var d1 = Math.sqrt((cur.position.x - world.bodies[0].position.x) * (cur.position.x - world.bodies[0].position.x)
-    //         +
-    //         (cur.position.y - world.bodies[0].position.y) * (cur.position.y - world.bodies[0].position.y))
-    //     var d2 = Math.sqrt((cur.position.x - world.bodies[1].position.x) * (cur.position.x - world.bodies[1].position.x)
-    //         +
-    //         (cur.position.y - world.bodies[1].position.y) * (cur.position.y - world.bodies[1].position.y))
-    //     // d = Math.pow(1 - d / 20, 2)
-    //     d1 = 1 - d1 / 500;
-    //     d2 = 1 - d2 / 500;
-    //     cur.scale.x = cur.scale.y = (Math.max(0.1, Math.min(0.5, d2)) +  Math.max(0.1, Math.min(0.5, d1))) / 2;
-    // }
-
-    // ds.update(delta);
-
+    }
+    updatables = nextUpdatables;
     requestAnimationFrame(update);
   }
 
   update();
+  var c = new CurlingBall();
+  window.c = c;
+  c.setPosition(width / 2, height);
+  container.addChild(ballsContainer);
 }
-
-const binghuNames = [];
-const binghuColors = ["red",'blue'];
-const bunghuKV = {};
-
-for (let i = 1; i <= 360; i++) {
-  binghuColors.forEach(color => {
-    if (!bunghuKV[color]) {
-      bunghuKV[color] = [];
-    }
-    const name =
-      "./assets/binghu-" + color + "/binghu" + (i + "").padStart(4, 0) + ".png";
-    binghuNames.push(name);
-    bunghuKV[color][i - 1] = name;
-  });
-}
-
-PIXI.loader
-  .add([
-    "./assets/circle.png",
-    "./assets/shade.png",
-    "./assets/crossbig.png",
-    "./assets/track.png",
-    "./assets/aim.png",
-    ...binghuNames
-  ])
-  .on("progress", loader => {
-    // console.log("progress: " + loader.progress + "%");
-  })
-  .load(setup);
