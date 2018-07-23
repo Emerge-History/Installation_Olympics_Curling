@@ -2,6 +2,7 @@ var sock = io("/");
 var updatables = [];
 
 var states = {
+  scene: 0,
   balls: [],
   game: {
     id: -1,
@@ -26,10 +27,19 @@ function launchBall() {
   };
   force = Matter.Vector.rotate(force, states.control.angle);
   Matter.Body.applyForce(ball.body, { x: width / 2, y: height + 200 }, force);
-  Matter.Body.setAngularVelocity(
-    ball.body,
-    (Math.random() - 0.5) * 0.1
-  );
+  Matter.Body.setAngularVelocity(ball.body, (Math.random() - 0.5) * 0.1);
+}
+
+function ease(cur, target, c, precision) {
+  var delta = target - cur;
+  if (Math.abs(delta) < (precision || 0.001)) {
+    return cur;
+  }
+  return cur + delta * (c || 0.01);
+}
+
+function map(t, a, b, c, d) {
+  return ((t - a) / (b - a)) * (d - c) + c;
 }
 
 function checkForGameover() {
@@ -73,7 +83,8 @@ function checkForNewGame() {
     return;
   }
   if (states.control.gameId != states.game.id) {
-    if (states.control.launched) { //bad game!
+    if (states.control.launched) {
+      //bad game!
       states.game.id = -100; //waiting
       console.log("not good, resetting");
       sock.emit("all", "reset");
@@ -91,10 +102,9 @@ function checkForNewGame() {
   }
 }
 
-sock.on("state", (d) => {
+sock.on("state", d => {
   states.control = d.control;
 });
-
 
 function loop(updateFunction) {
   updatables.push(updateFunction);
@@ -104,8 +114,8 @@ loop(() => {
   for (var i in states.control) {
     if (states.econtrol[i] !== states.control[i]) {
       states.econtrol[i] = states.econtrol[i] || states.control[i];
-      states.econtrol[i] += (states.control[i] - states.econtrol[i])
-        * (states._e[i] || 0.1);
+      states.econtrol[i] +=
+        (states.control[i] - states.econtrol[i]) * (states._e[i] || 0.1);
     }
   }
 });
@@ -128,6 +138,10 @@ for (let i = 1; i <= 360; i++) {
 
 PIXI.loader
   .add([
+    "./assets/line.png",
+    "./assets/rect.png",
+    "./assets/trangle.png",
+    "./assets/ring.png",
     "./assets/aimring.png",
     "./assets/winnerRing.png",
     "./assets/aimbtn.png",
@@ -139,8 +153,8 @@ PIXI.loader
     "./assets/gradientMask.png",
     "./assets/stroke.png",
     ...binghuNames
-  ]).load(setup);
-
+  ])
+  .load(setup);
 
 Engine = Matter.Engine;
 Runner = Matter.Runner;
@@ -171,7 +185,7 @@ const height = 6480;
 var centerPosition = {
   x: width / 2,
   y: 1300
-}
+};
 
 const app = new PIXI.Application({
   width,
@@ -215,7 +229,9 @@ class CurlingBall {
     this.shade.position.x = 40;
     this.sprite.width = this.sprite.height = 335;
 
-    this.winnerRing = new PIXI.Sprite(resources["./assets/winnerRing.png"].texture);
+    this.winnerRing = new PIXI.Sprite(
+      resources["./assets/winnerRing.png"].texture
+    );
     this.winnerRing.blendMode = PIXI.BLEND_MODES.MULTIPLY;
     this.winnerRing.width = this.winnerRing.height = 400;
 
@@ -247,17 +263,22 @@ class CurlingBall {
   }
 
   score() {
-    return Matter.Vector.magnitude(Matter.Vector.sub(this.body.position, centerPosition));
+    return Matter.Vector.magnitude(
+      Matter.Vector.sub(this.body.position, centerPosition)
+    );
   }
 
   isOutside() {
-    return this.body.position.x < -160 || this.body.position.y < -160
-      || this.body.position.x > width + 160 || this.body.position.y > height + 1800
+    return (
+      this.body.position.x < -160 ||
+      this.body.position.y < -160 ||
+      this.body.position.x > width + 160 ||
+      this.body.position.y > height + 1800
+    );
   }
 
   isStoppedOrOutside() {
-    if (Matter.Vector.magnitude(this.body.velocity) < 0.2 ||
-      this.isOutside()) {
+    if (Matter.Vector.magnitude(this.body.velocity) < 0.2 || this.isOutside()) {
       return true;
     }
     return false;
@@ -265,8 +286,9 @@ class CurlingBall {
 
   setPosition(x, y) {
     Matter.Body.setPosition(this.body, {
-      x: x, y: y
-    })
+      x: x,
+      y: y
+    });
   }
 
   update(t, dt) {
@@ -293,15 +315,12 @@ class CurlingBall {
     this.container.position.x = this.body.position.x;
     this.container.position.y = this.body.position.y;
 
-
     let unmod = Math.abs((this.body.angle / Math.PI) * 180) % 1;
     let rot = Math.floor(Math.abs((this.body.angle / Math.PI) * 180)) % 360;
     this.sprite.rotation = (-unmod / 180) * Math.PI;
     this.sprite.texture = resources[binghuKV[this.color][rot]].texture;
 
-
     if (this.isPlayer) {
-
       turn[0].a = Matter.Vector.angle(this.body.velocity, turn[0]);
       turn[1].a = Matter.Vector.angle(this.body.velocity, turn[1]);
 
@@ -352,133 +371,6 @@ class CurlingBall {
 }
 
 function setup() {
-
-  //generative
-  {
-    var grid = new PIXI.Container();
-    var gridSize = 64;
-    var gen_grid = [];
-    for (var x = gridSize; x < width; x += gridSize * 3) {
-      for (var y = gridSize; y < height; y += gridSize * 3) {
-        var sprite_grid = new PIXI.Sprite(
-          resources["./assets/crossbig.png"].texture
-        );
-        // sprite_grid.width = sprite_grid.height = gridSize;
-        sprite_grid.anchor.x = sprite_grid.anchor.y = 0.5;
-        sprite_grid.position.x = x + gridSize / 2;
-        sprite_grid.position.y = y + gridSize / 2;
-        sprite_grid.scale.x = sprite_grid.scale.y = 0.1;
-        sprite_grid.tint = 0x666666;
-        sprite_grid.blendMode = PIXI.BLEND_MODES.MULTIPLY;
-        sprite_grid.alpha = 0.5;
-        gen_grid.push(sprite_grid);
-        grid.addChild(sprite_grid);
-      }
-    }
-    container.addChild(grid);
-  }
-
-  //dots
-  {
-    const colors = [0xe75b80, 0x409edb, 0xf7ca00, 0xffffff];
-    class Mouse {
-      constructor() {
-        this.pos = new Vec2(0, 0);
-        window.addEventListener("mousemove", e => {
-          this.pos.x = e.offsetX;
-          this.pos.y = e.offsetY;
-        });
-      }
-    }
-
-    class Dot {
-      constructor(sprite) {
-        this.t = 0;
-        this.alive = true;
-        this.posX = Math.random() * width;
-        this.pos = new Vec2(0, height);
-        this.mass = 2 + Math.random() * 2;
-        this.frequency = Math.random() * 10;
-        this.amplitude = 50 + Math.random() * 20;
-        this.color = [colors[Math.floor(Math.random() * colors.length)], 1];
-        this.size = Math.random() * 40 + 10;
-
-        this.sprite = sprite;
-      }
-      update(gravity) {
-        this.t += 0.01;
-        this.pos.x =
-          this.posX + Math.sin(this.t * this.frequency) * this.amplitude;
-        this.pos.y += gravity * this.mass;
-
-        if (this.pos.y < -20) {
-          this.alive = false;
-          this.sprite.visible = false;
-        }
-        this.color[1] = Math.abs(Math.sin(this.t));
-        this.render();
-      }
-      render() {
-        this.sprite.x = this.pos.x;
-        this.sprite.y = this.pos.y;
-        this.sprite.tint = this.color[0];
-        this.sprite.alpha = this.color[1];
-        this.sprite.width = this.size;
-        this.sprite.height = this.size;
-      }
-    }
-
-    class DotSystem {
-      constructor() {
-        this.t = 0;
-        this.pool = [];
-        this.gravity = -3;
-        this.dots = [];
-        this.pixiContainer = new PIXI.particles.ParticleContainer(10000, {
-          scale: true,
-          position: true,
-          rotation: true,
-          uvs: true,
-          alpha: true
-        });
-
-        for (let i = 0; i < 3000; i++) {
-          const sprite = new PIXI.Sprite(
-            resources["./assets/circle.png"].texture
-          );
-          this.pool.push(sprite);
-          sprite.visible = false;
-          this.pixiContainer.addChild(sprite);
-        }
-      }
-      createDot() {
-        for (let i = 0; i < this.pool.length; i++) {
-          if (!this.pool[i].visible) {
-            this.pool[i].visible = true;
-            const dot = new Dot(this.pool[i]);
-            this.dots.push(dot);
-            break;
-          }
-        }
-      }
-      update(delta) {
-        this.t += delta;
-        for (let i = 0; i < 4; i++) {
-          this.createDot();
-        }
-
-        this.dots = this.dots.filter(dot => dot.alive);
-
-        this.dots.forEach(dot => {
-          dot.update(this.gravity);
-        });
-      }
-    }
-
-    var ds = new DotSystem();
-    container.addChild(ds.pixiContainer);
-  }
-
   //track
   {
     var track = new PIXI.Container();
@@ -496,6 +388,370 @@ function setup() {
     sprite_aim.blendMode = PIXI.BLEND_MODES.MULTIPLY;
     container.addChild(track);
   }
+
+  // background
+  // ======================================================
+
+  let inputs = [];
+  const colors = [0xe75b80, 0x409edb, 0xf7ca00];
+
+  class Dot {
+    constructor(sprite, y) {
+      this.t = Math.random() * 100 + 20;
+      this.alive = true;
+      this.posX = Math.random() * width;
+      this.pos = new Vec2(this.posX, y);
+
+      this.targetPos = new Vec2(this.posX, y);
+
+      this.mass = 2 + Math.random() * 2;
+      this.frequency = Math.random() * 10;
+      this.amplitude = 50 + Math.random() * 20;
+      this.color = [colors[Math.floor(Math.random() * colors.length)], 1];
+      this.size = Math.random() * 60 + 20;
+
+      this.sprite = sprite;
+    }
+    update(gravity) {
+      this.t += 0.01;
+
+      this.targetPos.x =
+        this.posX + Math.sin(this.t * this.frequency) * this.amplitude;
+
+      this.targetPos.y += gravity * this.mass;
+
+      this.pos.x = ease(this.pos.x, this.targetPos.x, 0.2);
+      this.pos.y = ease(this.pos.y, this.targetPos.y, 0.2);
+
+      if (this.pos.y < -100) {
+        this.alive = false;
+        this.sprite.visible = false;
+      }
+      this.color[1] = Math.abs(Math.sin(this.t));
+      // ======================
+      for (let i = 0; i < inputs.length; i++) {
+        const input = inputs[i];
+        const vector = this.pos.clone().subtract(input.pos);
+        const angleX = vector.angleTo(new Vec2(1, 0));
+        const angleY = vector.angleTo(new Vec2(0, 1));
+        const F = 20000 / vector.length();
+        const forceX = Math.cos(angleX) * F;
+        const forceY = Math.cos(angleY) * F;
+        this.pos.x += forceX;
+        this.pos.y += forceY;
+      }
+      // ======================
+      this.render();
+    }
+    render() {
+      this.sprite.x = this.pos.x;
+      this.sprite.y = this.pos.y;
+      this.sprite.tint = this.color[0];
+      this.sprite.alpha = this.color[1];
+      this.sprite.width = this.size;
+      this.sprite.height = this.size;
+    }
+  }
+
+  class DotSystem {
+    constructor() {
+      this.t = 0;
+      this.pool = [];
+      this.gravity = -3;
+      this.dots = [];
+      this.density = 20;
+      this.container = new PIXI.Container();
+
+      this.particleContainer = new PIXI.particles.ParticleContainer(10000, {
+        scale: true,
+        position: true,
+        rotation: true,
+        uvs: true,
+        alpha: true
+      });
+
+      this.container.addChild(this.particleContainer);
+
+      for (let i = 0; i < 3000; i++) {
+        const sprite = new PIXI.Sprite(
+          resources["./assets/circle.png"].texture
+        );
+        sprite.anchor.set(0.5);
+        this.pool.push(sprite);
+        sprite.visible = false;
+        this.particleContainer.addChild(sprite);
+      }
+
+      for (let i = 0; i < 500; i++) {
+        this.createDot(Math.random() * height);
+      }
+    }
+    enter() {
+      this.gravity = -50;
+    }
+    leave() {
+      this.gravity = 10;
+    }
+    createDot(y = height) {
+      for (let i = 0; i < this.pool.length; i++) {
+        if (!this.pool[i].visible) {
+          this.pool[i].visible = true;
+          const dot = new Dot(this.pool[i], y);
+          this.dots.push(dot);
+          break;
+        }
+      }
+    }
+    update(delta) {
+      this.t += delta;
+      for (
+        let i = 0;
+        i < Math.round((-this.gravity / 100) * this.density);
+        i++
+      ) {
+        this.createDot();
+      }
+
+      this.dots = this.dots.filter(dot => dot.alive);
+
+      this.dots.forEach(dot => {
+        dot.update(this.gravity);
+      });
+    }
+  }
+
+  class Grid {
+    constructor() {
+      this.container = new PIXI.Container();
+      this.particleContainer = new PIXI.particles.ParticleContainer(30000, {
+        scale: true,
+        position: true,
+        rotation: true,
+        uvs: true,
+        alpha: true
+      });
+
+      this.rects = [];
+      this.size = 110;
+      // this.size = 20;
+      this.initGrid();
+      this.t = 0;
+      this.container.addChild(this.particleContainer);
+    }
+    initGrid() {
+      for (let i = 0; i < width + this.size; i += this.size + 40) {
+        for (let j = 0; j < height + this.size; j += this.size + 40) {
+          const sprite = new PIXI.Sprite(
+            resources["./assets/trangle.png"].texture
+          );
+          sprite.anchor.set(0.5);
+          sprite.x = i;
+          sprite.y = j;
+          // sprite.tint = 0xffffff;
+          // sprite.tint = 0x00b5ff;
+          sprite.rotation = Math.random() * Math.PI;
+          sprite.width = this.size;
+          sprite.height = this.size;
+          this.particleContainer.addChild(sprite);
+          this.rects.push(sprite);
+        }
+      }
+    }
+    update(delta) {
+      this.t += delta;
+      this.render();
+    }
+    render() {
+      this.rects.forEach(rect => {
+        rect.rotation += 0.01;
+        rect.alpha = Math.abs(
+          noise.simplex3(rect.x / 600, rect.y / 600, this.t / 100)
+        );
+        // rect.scale.set(
+        //   Math.abs(noise.simplex3(rect.x / 600, rect.y / 600, this.t / 100) * 3)
+        // );
+        rect.tint = 0x000000;
+        for (let i = 0; i < inputs.length; i++) {
+          const input = inputs[i];
+          const vector = new Vec2(rect.x - input.pos.x, rect.y - input.pos.y);
+
+          if (vector.length() < 600) {
+            let angle = new Vec2(0, 1).angleTo(vector);
+            rect.rotation = angle;
+          }
+        }
+      });
+    }
+  }
+
+  class Corss {
+    constructor() {
+      this.container = new PIXI.Container();
+      this.particleContainer = new PIXI.particles.ParticleContainer(30000, {
+        scale: true,
+        position: true,
+        rotation: true,
+        uvs: true,
+        alpha: true
+      });
+      this.rects = [];
+      this.size = 30;
+      this.initGrid();
+      this.t = 0;
+      this.container.addChild(this.particleContainer);
+    }
+    initGrid() {
+      for (let i = 0; i < width; i += this.size + 100) {
+        for (let j = 0; j < height; j += this.size + 100) {
+          const sprite = new PIXI.Sprite(
+            resources["./assets/crossbig.png"].texture
+          );
+          sprite.x = i;
+          sprite.y = j;
+          sprite.tint = 0x000000;
+          sprite.width = this.size;
+          sprite.height = this.size;
+          this.particleContainer.addChild(sprite);
+          this.rects.push(sprite);
+        }
+      }
+    }
+    update(delta) {
+      this.t += delta;
+      this.render();
+    }
+    render() {
+      this.rects.forEach(rect => {
+        rect.width = this.size;
+        rect.height = this.size;
+
+        rect.alpha =
+          Math.abs(noise.simplex3(rect.x / 300, rect.y / 300, this.t / 100)) /
+          2;
+
+        for (let i = 0; i < inputs.length; i++) {
+          const input = inputs[i];
+          const vector = new Vec2(rect.x - input.pos.x, rect.y - input.pos.y);
+          if (vector.length() < 400) {
+            rect.width = this.size * 2;
+            rect.height = this.size * 2;
+          }
+        }
+      });
+    }
+  }
+
+  class Rect {
+    constructor() {
+      this.container = new PIXI.Container();
+      this.particleContainer = new PIXI.particles.ParticleContainer(30000, {
+        scale: true,
+        position: true,
+        rotation: true,
+        uvs: true,
+        alpha: true
+      });
+
+      this.rects = [];
+      this.size = 110;
+      // this.size = 20;
+      this.initGrid();
+      this.t = 0;
+      this.container.addChild(this.particleContainer);
+    }
+    initGrid() {
+      for (let i = 0; i < width + this.size; i += this.size + 70) {
+        for (let j = 0; j < height + this.size; j += this.size + 70) {
+          const sprite = new PIXI.Sprite(
+            resources["./assets/rect.png"].texture
+          );
+          sprite.anchor.set(0.5);
+          sprite.x = i;
+          sprite.y = j;
+          // sprite.tint = 0xffffff;
+          // sprite.tint = 0x00b5ff;
+          sprite.rotation = Math.random() * Math.PI;
+          sprite.width = this.size;
+          sprite.height = this.size;
+          this.particleContainer.addChild(sprite);
+          this.rects.push(sprite);
+        }
+      }
+    }
+    update(delta) {
+      this.t += delta;
+      this.render();
+    }
+    render() {
+      this.rects.forEach(rect => {
+        rect.alpha = Math.abs(
+          noise.simplex3(rect.x / 600, rect.y / 600, this.t / 100)
+        );
+        rect.scale.set(
+          Math.abs(noise.simplex3(rect.x / 600, rect.y / 600, this.t / 100) * 3)
+        );
+        rect.tint = 0xff49c5;
+        rect.rotation += 0.01;
+        for (let i = 0; i < inputs.length; i++) {
+          const input = inputs[i];
+          const vector = new Vec2(rect.x - input.pos.x, rect.y - input.pos.y);
+
+          if (vector.length() < 600) {
+            rect.scale.set(vector.length() / 600);
+            let angle = new Vec2(0, 1).angleTo(vector);
+            rect.rotation = angle;
+          }
+        }
+      });
+    }
+  }
+
+  const ds = new DotSystem();
+  container.addChild(ds.container);
+  ds.container.blendMode = PIXI.BLEND_MODES.MULTIPLY;
+  const grid = new Grid();
+  container.addChild(grid.container);
+  grid.container.blendMode = PIXI.BLEND_MODES.MULTIPLY;
+  const corss = new Corss();
+  container.addChild(corss.container);
+  corss.container.blendMode = PIXI.BLEND_MODES.MULTIPLY;
+  const rect = new Rect();
+  container.addChild(rect.container);
+  rect.container.blendMode = PIXI.BLEND_MODES.MULTIPLY;
+
+  loop(() => {
+    inputs.length = 0;
+    states.balls.forEach(ball => {
+      inputs.push({
+        pos: new Vec2(ball.body.position.x, ball.body.position.y)
+      });
+    });
+  });
+
+  loop((time, delta) => {
+    delta = delta/10;
+    ds.container.visible = false;
+    grid.container.visible = false;
+    corss.container.visible = false;
+    rect.container.visible = false;
+    if (states.scene === 0) {
+      ds.container.visible = true;
+      ds.update(delta);
+      corss.container.visible = true;
+      corss.update(delta);
+    }
+    if (states.scene === 1) {
+      grid.container.visible = true;
+      grid.update(delta);
+    }
+    if (states.scene === 2) {
+      rect.container.visible = true;
+      rect.update(delta);
+    }
+  });
+
+  // background
+  // ======================================================
 
   var time = 0;
   function update(n) {
@@ -518,21 +774,27 @@ function setup() {
   // window.c = c;
   // c.setPosition(width / 2, height);
 
-
-
   var aimContainer = new PIXI.Container();
 
   var aimRing = new PIXI.Sprite(resources["./assets/aimring.png"].texture);
   var aimBtn = new PIXI.Sprite(resources["./assets/aimbtn.png"].texture);
-  var aimText = new PIXI.Text('测试', { fontFamily: 'PingFang SC', fontSize: 50, fill: 0xffffff, align: 'center' });
+  var aimText = new PIXI.Text("测试", {
+    fontFamily: "PingFang SC",
+    fontSize: 50,
+    fill: 0xffffff,
+    align: "center"
+  });
 
   aimBtn.position.y = -60;
   aimText.position.y = -85;
 
-
   var aimRotator = new PIXI.Container();
   var aimMask = new PIXI.Sprite(resources["./assets/gradientMask.png"].texture);
-  var aimDash = new PIXI.extras.TilingSprite(resources["./assets/stroke.png"].texture, 15, 3470);
+  var aimDash = new PIXI.extras.TilingSprite(
+    resources["./assets/stroke.png"].texture,
+    15,
+    3470
+  );
 
   aimMask.anchor.x = 0.5;
   aimMask.anchor.y = 1;
@@ -558,8 +820,12 @@ function setup() {
   aimContainer.position.y = height;
 
   loop(() => {
-    var show_angler = Math.min(1, states.econtrol.angle_enabled + states.econtrol.selecting_power);
-    aimText.text = "角度 " + (Math.floor(states.control.angle / Math.PI * 1800) / 10) + "°";
+    var show_angler = Math.min(
+      1,
+      states.econtrol.angle_enabled + states.econtrol.selecting_power
+    );
+    aimText.text =
+      "角度 " + Math.floor((states.control.angle / Math.PI) * 1800) / 10 + "°";
     aimContainer.alpha = show_angler;
     aimDash.tilePosition.y += -4.1;
     aimRotator.rotation = states.econtrol.angle || 0;
