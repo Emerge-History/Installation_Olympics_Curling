@@ -9,6 +9,8 @@ mask.endFill()
 var app = new PIXI.Application(w, h, { backgroundColor: 0x163772 });
 document.body.appendChild(app.view);
 
+
+var sock = io("/");
 var updatables = [];
 
 function loop(updateFunction) {
@@ -25,6 +27,31 @@ function loopStates(state) {
         }
     });
 }
+
+function mirror(s) {
+    var saved = s;
+    var cur = {};
+    var lastMsg = 0;
+    loop((t) => {
+        if (t - lastMsg < 0.04) return;
+        lastMsg = t;
+        var changed = false;
+        for (var i in saved) {
+            if (!i.startsWith("_") && cur[i] !== saved[i]) {
+                cur[i] = saved[i];
+                changed = true;
+            }
+        }
+        if (changed) {
+            console.log("wo");
+            sock.emit("state", {
+                key: "control",
+                value: cur
+            })
+        }
+    });
+}
+
 
 function position(b, x, y) {
     if (x || y) {
@@ -204,6 +231,17 @@ for (var i = 0; i < MAX_LEN; i++) {
 
 //controller
 {
+
+    sock.on("all", (d) => {
+        if (d == 'reset') {
+            console.log("resetting");
+            controlstate.reset = 1;
+            controlstate.launched = 0;
+        } else if (d["key"] == "gameover") {
+            controlstate.gameover = 1;
+        }
+    });
+
     var controlstate = {
         reset: 1,
 
@@ -221,6 +259,8 @@ for (var i = 0; i < MAX_LEN; i++) {
 
         angle_enabled: 0,
         _angle_enabled: 0,
+
+        selecting_angle: 0,
 
         selecting_power: 0,
         _selecting_power: 0,
@@ -249,8 +289,9 @@ for (var i = 0; i < MAX_LEN; i++) {
 
         inactive: 0,
         _inactive: 0,
-
     };
+    mirror(controlstate);
+
 
     document.body.addEventListener("touchstart", () => {
         if (controlstate.inactive) {
@@ -279,7 +320,6 @@ for (var i = 0; i < MAX_LEN; i++) {
     ball.width = 400;
     ball_container.addChild(shade);
     ball_container.addChild(ball);
-
 
     let angle_rotator = new PIXI.Container();
     let drag_dot_rotator = new PIXI.Container();
@@ -417,6 +457,7 @@ for (var i = 0; i < MAX_LEN; i++) {
             controlstate.angle = controlstate._angle = 0;
             controlstate.gui = 0;
             if (controlstate.reset) {
+                controlstate.gameId = Math.random();
                 controlstate.gameover = 0;
                 controlstate._gameover = 0;
                 controlstate.inactive = 1;
@@ -426,6 +467,7 @@ for (var i = 0; i < MAX_LEN; i++) {
                 controlstate._inactive = 0;
             }
             if (controlstate.newgame) {
+                controlstate.gameId = Math.random();
                 controlstate.inactive = 0;
                 controlstate._inactive = 0;
                 controlstate.gameover = 0;
@@ -556,17 +598,20 @@ for (var i = 0; i < MAX_LEN; i++) {
     bar_direction_dot.start = () => {
         if (!controlstate.angle_enabled) return;
         this.dragging = true;
+        controlstate.selecting_angle = 1;
         controlstate.last_drag = Date.now();
     };
     bar_direction_dot.end = () => {
         if (!controlstate.angle_enabled) return;
         this.dragging = false;
+        controlstate.selecting_angle = 0;
         controlstate.angle_selected = 1;
         controlstate.last_drag = Date.now();
     };
     bar_direction_dot.move = (e) => {
         if (!controlstate.angle_enabled) return;
         if (this.dragging) {
+            controlstate.selecting_angle = 1;
             controlstate.last_drag = Date.now();
             var deg = Math.atan2(e.data.global.y - h / 2, e.data.global.x - w / 2);
             if (deg > Math.PI / 2) {
@@ -621,3 +666,4 @@ function update() {
 }
 
 update();
+

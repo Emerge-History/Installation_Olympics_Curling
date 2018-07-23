@@ -1,8 +1,119 @@
+var sock = io("/");
+var updatables = [];
+
+var states = {
+  balls: [],
+  game: {
+    id: -1,
+    launched: false
+  },
+  control: {},
+  econtrol: {},
+  _e: {}
+};
+
+function launchBall() {
+  var ball = new CurlingBall();
+  ball.isPlayer = 1;
+  ball.setPosition(width / 2, height + 200);
+  for (var i = 0; i < states.balls.length; i++) {
+    states.balls[i].isPlayer = 0;
+  }
+  states.balls.push(ball);
+  var force = {
+    x: 0,
+    y: -8 * (states.control.power + 0.3)
+  };
+  force = Matter.Vector.rotate(force, states.control.angle);
+  Matter.Body.applyForce(ball.body, { x: width / 2, y: height + 200 }, force);
+  Matter.Body.setAngularVelocity(
+    ball.body,
+    (Math.random() - 0.5) * 0.1
+  );
+}
+
+function checkForGameover() {
+  var moving = 0;
+  var hasMaxScore = undefined;
+  var maxScore = 300;
+  var newballs = [];
+  for (var i = 0; i < states.balls.length; i++) {
+    states.balls[i].isMaxScore = false;
+    if (!states.balls[i].isStoppedOrOutside()) {
+      moving++;
+    }
+    if (states.balls[i].score() < maxScore) {
+      maxScore = states.balls[i].score();
+      hasMaxScore = states.balls[i];
+    }
+    if (!states.balls[i].life == 0) {
+      newballs.push(states.balls[i]);
+    }
+  }
+  if (hasMaxScore) {
+    hasMaxScore.isMaxScore = true;
+  }
+  states.balls = newballs;
+
+  if (moving == 0) {
+    for (var i = 0; i < states.balls.length; i++) {
+      if (!states.balls[i].isMaxScore) {
+        states.balls[i].life = 0;
+      }
+    }
+    sock.emit("all", {
+      key: "gameover",
+      value: 0
+    });
+  }
+}
+
+function checkForNewGame() {
+  if (!states.control) {
+    return;
+  }
+  if (states.control.gameId != states.game.id) {
+    if (states.control.launched) { //bad game!
+      states.game.id = -100; //waiting
+      console.log("not good, resetting");
+      sock.emit("all", "reset");
+      return;
+    } else {
+      states.game.id = states.control.gameId;
+      states.game.launched = false;
+      return;
+    }
+  } else if (!states.game.launched && states.control.launched) {
+    states.game.launched = true;
+    launchBall();
+  } else if (states.game.launched && states.control.launched) {
+    checkForGameover();
+  }
+}
+
+sock.on("state", (d) => {
+  states.control = d.control;
+});
+
+
+function loop(updateFunction) {
+  updatables.push(updateFunction);
+}
+
+loop(() => {
+  for (var i in states.control) {
+    if (states.econtrol[i] !== states.control[i]) {
+      states.econtrol[i] = states.econtrol[i] || states.control[i];
+      states.econtrol[i] += (states.control[i] - states.econtrol[i])
+        * (states._e[i] || 0.1);
+    }
+  }
+});
+
 const binghuNames = [];
 const binghuColors = ["red"];
 const binghuKV = {};
 
-var updatables = [];
 for (let i = 1; i <= 360; i++) {
   binghuColors.forEach(color => {
     if (!binghuKV[color]) {
@@ -17,13 +128,19 @@ for (let i = 1; i <= 360; i++) {
 
 PIXI.loader
   .add([
+    "./assets/aimring.png",
+    "./assets/winnerRing.png",
+    "./assets/aimbtn.png",
     "./assets/circle.png",
     "./assets/shade.png",
     "./assets/crossbig.png",
     "./assets/track.png",
     "./assets/aim.png",
+    "./assets/gradientMask.png",
+    "./assets/stroke.png",
     ...binghuNames
   ]).load(setup);
+
 
 Engine = Matter.Engine;
 Runner = Matter.Runner;
@@ -85,6 +202,8 @@ class CurlingBall {
   constructor() {
     this.isPlayer = false;
 
+    this.isMaxScore = false;
+    this._isMaxScore = 0;
     this.color = "red";
     this.texture = resources[binghuKV[this.color][0]].texture;
     this.container = new PIXI.Container();
@@ -96,11 +215,17 @@ class CurlingBall {
     this.shade.position.x = 40;
     this.sprite.width = this.sprite.height = 335;
 
+    this.winnerRing = new PIXI.Sprite(resources["./assets/winnerRing.png"].texture);
+    this.winnerRing.blendMode = PIXI.BLEND_MODES.MULTIPLY;
+    this.winnerRing.width = this.winnerRing.height = 400;
+
+    center(this.winnerRing, 0, 0);
     center(this.shade, 0, 0);
     center(this.sprite, 0, 0);
 
     this.container.addChild(this.sprite);
     this.container.addChild(this.shade);
+    this.container.addChild(this.winnerRing);
 
     ballsContainer.addChild(this.container);
 
@@ -126,12 +251,12 @@ class CurlingBall {
   }
 
   isOutside() {
-    return this.body.position.x < -400 || this.body.position.y < -400
-      || this.body.position.x > width + 400 || this.body.position.y > height + 800
+    return this.body.position.x < -160 || this.body.position.y < -160
+      || this.body.position.x > width + 160 || this.body.position.y > height + 1800
   }
 
   isStoppedOrOutside() {
-    if (Matter.Vector.magnitude(this.body.velocity) < 0.1 ||
+    if (Matter.Vector.magnitude(this.body.velocity) < 0.2 ||
       this.isOutside()) {
       return true;
     }
@@ -145,10 +270,13 @@ class CurlingBall {
   }
 
   update(t, dt) {
+    this._isMaxScore += ((this.isMaxScore ? 1 : 0) - this._isMaxScore) * 0.2;
+    this.winnerRing.alpha = this._isMaxScore;
+    this.winnerRing.rotation += 0.02;
     this._life += (this.life - this._life) * 0.1;
     this.container.alpha = this._life;
-    
-    if(this.isOutside()) {
+
+    if (this.isOutside()) {
       this.life = 0;
     }
 
@@ -165,12 +293,14 @@ class CurlingBall {
     this.container.position.x = this.body.position.x;
     this.container.position.y = this.body.position.y;
 
-    if (this.isPlayer) {
 
-      let unmod = Math.abs((this.body.angle / Math.PI) * 180) % 1;
-      let rot = Math.floor(Math.abs((this.body.angle / Math.PI) * 180)) % 360;
-      this.sprite.rotation = (-unmod / 180) * Math.PI;
-      this.sprite.texture = resources[binghuKV[this.color][rot]].texture;
+    let unmod = Math.abs((this.body.angle / Math.PI) * 180) % 1;
+    let rot = Math.floor(Math.abs((this.body.angle / Math.PI) * 180)) % 360;
+    this.sprite.rotation = (-unmod / 180) * Math.PI;
+    this.sprite.texture = resources[binghuKV[this.color][rot]].texture;
+
+
+    if (this.isPlayer) {
 
       turn[0].a = Matter.Vector.angle(this.body.velocity, turn[0]);
       turn[1].a = Matter.Vector.angle(this.body.velocity, turn[1]);
@@ -218,13 +348,6 @@ class CurlingBall {
         this.body.angularVelocity * 0.995
       );
     }
-  }
-}
-
-var game = {
-  balls: [],
-  state: {
-
   }
 }
 
@@ -391,8 +514,59 @@ function setup() {
   }
 
   update();
-  var c = new CurlingBall();
-  window.c = c;
-  c.setPosition(width / 2, height);
+  // var c = new CurlingBall();
+  // window.c = c;
+  // c.setPosition(width / 2, height);
+
+
+
+  var aimContainer = new PIXI.Container();
+
+  var aimRing = new PIXI.Sprite(resources["./assets/aimring.png"].texture);
+  var aimBtn = new PIXI.Sprite(resources["./assets/aimbtn.png"].texture);
+  var aimText = new PIXI.Text('测试', { fontFamily: 'PingFang SC', fontSize: 50, fill: 0xffffff, align: 'center' });
+
+  aimBtn.position.y = -60;
+  aimText.position.y = -85;
+
+
+  var aimRotator = new PIXI.Container();
+  var aimMask = new PIXI.Sprite(resources["./assets/gradientMask.png"].texture);
+  var aimDash = new PIXI.extras.TilingSprite(resources["./assets/stroke.png"].texture, 15, 3470);
+
+  aimMask.anchor.x = 0.5;
+  aimMask.anchor.y = 1;
+  aimDash.anchor.x = 0.5;
+  aimDash.anchor.y = 1;
+
+  aimRotator.addChild(aimMask);
+  aimRotator.addChild(aimDash);
+
+  aimDash.mask = aimMask;
+
+  center(aimText);
+  aimBtn.addChild(aimText);
+
+  aimRing.anchor.x = aimBtn.anchor.x = 0.5;
+  aimRing.anchor.y = aimBtn.anchor.y = 1;
+  aimContainer.addChild(aimRing);
+  aimContainer.addChild(aimRotator);
+  aimContainer.addChild(aimBtn);
+  aimRotator.position.y = 200;
+
+  aimContainer.position.x = width / 2;
+  aimContainer.position.y = height;
+
+  loop(() => {
+    var show_angler = Math.min(1, states.econtrol.angle_enabled + states.econtrol.selecting_power);
+    aimText.text = "角度 " + (Math.floor(states.control.angle / Math.PI * 1800) / 10) + "°";
+    aimContainer.alpha = show_angler;
+    aimDash.tilePosition.y += -4.1;
+    aimRotator.rotation = states.econtrol.angle || 0;
+  });
+
+  container.addChild(aimContainer);
   container.addChild(ballsContainer);
 }
+
+loop(checkForNewGame);
