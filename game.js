@@ -30,6 +30,10 @@ function launchBall() {
   Matter.Body.setAngularVelocity(ball.body, (Math.random() - 0.5) * 0.1);
 }
 
+function random(min, max) {
+  return Math.floor(Math.random() * (max - min + 1) + min);
+}
+
 function ease(cur, target, c, precision) {
   var delta = target - cur;
   if (Math.abs(delta) < (precision || 0.001)) {
@@ -75,6 +79,7 @@ function checkForGameover() {
       key: "gameover",
       value: 0
     });
+    states.scene = random(0, 2);
   }
 }
 
@@ -729,7 +734,7 @@ function setup() {
   });
 
   loop((time, delta) => {
-    delta = delta/10;
+    delta = delta / 10;
     ds.container.visible = false;
     grid.container.visible = false;
     corss.container.visible = false;
@@ -737,8 +742,8 @@ function setup() {
     if (states.scene === 0) {
       ds.container.visible = true;
       ds.update(delta);
-      corss.container.visible = true;
-      corss.update(delta);
+      // corss.container.visible = true;
+      // corss.update(delta);
     }
     if (states.scene === 1) {
       grid.container.visible = true;
