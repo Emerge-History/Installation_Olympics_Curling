@@ -1,7 +1,3 @@
-function random(min, max) {
-  return Math.floor(Math.random() * (max - min + 1) + min);
-}
-
 function ease(cur, target, c, precision) {
   var delta = target - cur;
   if (Math.abs(delta) < (precision || 0.001)) {
@@ -14,501 +10,368 @@ function map(t, a, b, c, d) {
   return ((t - a) / (b - a)) * (d - c) + c;
 }
 
+function random(min, max) {
+  return Math.floor(Math.random() * (max - min + 1) + min);
+}
+
 const resources = PIXI.loader.resources;
 const width = 1920;
 const height = 6480;
 const app = new PIXI.Application({
   width,
-  height,
-  transparent: true
+  height
 });
-
-//
 app.stage = new PIXI.display.Stage();
-
-const container = new PIXI.Container();
-app.stage.addChild(container);
-
+const main = new PIXI.Container();
+app.stage.addChild(main);
 document.getElementById("bg").appendChild(app.view);
-
-class Mouse {
+const mouse = new Vec2(0, 0);
+window.addEventListener("mousemove", e => {
+  mouse.x = e.offsetX;
+  mouse.y = e.offsetY;
+});
+const inputs = [mouse];
+//================================================================
+//================================================================
+//================================================================
+//================================================================
+//================================================================
+//================================================================
+class Base {
   constructor() {
-    this.pos = new Vec2(0, 0);
-    window.addEventListener("mousemove", e => {
-      this.pos.x = e.offsetX;
-      this.pos.y = e.offsetY;
+    this.t = 0;
+    this.container = new PIXI.Container();
+    main.addChild(this.container);
+  }
+}
+
+class Line extends Base {
+  constructor() {
+    super();
+    this.pool = [];
+    this.gravity = -10;
+    this.dots = [];
+    this.density = 60;
+
+    this.randomDots = [];
+
+    for (let i = 0; i < 10; i++) {
+      const sprite = new PIXI.Sprite(resources["./assets/circle.png"].texture);
+      this.container.addChild(sprite);
+      sprite.anchor.set(0.5);
+      const input = {
+        pos: new Vec2(random(100, width - 100), random(500, height - 500)),
+        type: 1,
+        sprite,
+        speed: Math.random() * 10 + 3,
+        direction: [random(-10, 10), random(-10, 10)]
+      };
+      sprite.x = input.pos.x;
+      sprite.y = input.pos.y;
+      this.randomDots.push(input);
+      this.container.addChild(sprite);
+    }
+
+    const layer = new PIXI.display.Layer();
+    layer.useRenderTexture = true;
+    layer.useDoubleBuffer = true;
+    const trailSprite = new PIXI.Sprite(layer.getRenderTexture());
+    layer.addChild(trailSprite);
+    trailSprite.alpha = 0.9;
+    const showLayer = new PIXI.Sprite(layer.getRenderTexture());
+
+    this.container.addChild(layer);
+    this.container.addChild(showLayer);
+
+    this.particleContainer = new PIXI.particles.ParticleContainer(10000, {
+      rotation: true,
+      tint: true,
+      scale: true
+    });
+
+    layer.addChild(this.particleContainer);
+    // create pool
+    for (let i = 0; i < 3000; i++) {
+      const sprite = new PIXI.Sprite(
+        resources["./assets/straight.png"].texture
+      );
+      sprite.anchor.set(0.5);
+      this.pool.push(sprite);
+      sprite.visible = false;
+      this.particleContainer.addChild(sprite);
+    }
+  }
+  createDot(y = 0) {
+    for (let i = 0; i < this.pool.length; i++) {
+      if (!this.pool[i].visible) {
+        const sprite = this.pool[i];
+        sprite.visible = true;
+        const posX = Math.random() * width;
+        const randomDots = this.randomDots;
+
+        const dot = {
+          invincible: random(0, 8) === 0,
+          t: Math.random() * 100 + 20,
+          alive: true,
+          posX,
+          pos: new Vec2(posX, y),
+          targetPos: new Vec2(posX, y),
+          nextPos: new Vec2(posX, y),
+          mass: 2 + Math.random() * 2,
+          frequency: Math.random() * 10,
+          amplitude: 50 + Math.random() * 20,
+          color: [0xffffff, 1],
+          size: Math.random() * 20 + 20,
+          sprite,
+          update(gravity) {
+            this.t += 0.01;
+            const prevPos = this.pos.clone();
+            this.targetPos.x =
+              this.posX + Math.sin(this.t * this.frequency) * this.amplitude;
+            this.targetPos.y -= gravity * this.mass;
+            this.pos.x = ease(this.pos.x, this.targetPos.x, 0.2);
+            this.pos.y = ease(this.pos.y, this.targetPos.y, 0.2);
+            if (this.pos.y > height + 100) {
+              this.alive = false;
+              this.sprite.visible = false;
+            }
+            this.color[1] = Math.abs(Math.sin(this.t));
+
+            const updateForce = (posArr, k) => {
+              for (let i = 0; i < posArr.length; i++) {
+                const input = posArr[i];
+                const vector = new Vec2(input.x, input.y).subtract(this.pos);
+                const length = vector.length();
+                let F = k / Math.pow(length, 2);
+                F = Math.min(F, 100);
+                const forceX = (vector.x / length) * F;
+                const forceY = (vector.y / length) * F;
+                this.pos.x -= forceX;
+                this.pos.y -= forceY;
+              }
+            };
+
+            if (!this.invincible) {
+              updateForce(inputs, 2000000);
+              updateForce(randomDots.map(randomDot => randomDot.pos), 500000);
+            }
+
+            this.sprite.x = (this.pos.clone().x + prevPos.x) / 2;
+            this.sprite.y = (this.pos.clone().y + prevPos.y) / 2;
+            const vector = prevPos.subtract(this.pos.clone());
+            this.sprite.rotation = Math.atan2(vector.y, vector.x) + Math.PI / 2;
+            this.sprite.height = this.size * (vector.length() / 10);
+            this.sprite.tint = this.color[0];
+            this.sprite.alpha = this.color[1];
+            this.sprite.width = this.size * 0.8;
+          }
+        };
+
+        this.dots.push(dot);
+        break;
+      }
+    }
+  }
+  update(delta) {
+    this.t += delta;
+
+    this.randomDots.forEach(randomDot => {
+      randomDot.pos.x += (randomDot.direction[0] * randomDot.speed) / 10;
+      randomDot.pos.y += (randomDot.direction[1] * randomDot.speed) / 10;
+      if (randomDot.pos.y < -100) {
+        randomDot.pos.y = height + 100;
+      }
+      if (randomDot.pos.y > height + 100) {
+        randomDot.pos.y = -100;
+      }
+      if (randomDot.pos.x < -100) {
+        randomDot.pos.x = width + 100;
+      }
+      if (randomDot.pos.x > width + 100) {
+        randomDot.pos.x = -100;
+      }
+      randomDot.sprite.x = randomDot.pos.x;
+      randomDot.sprite.y = randomDot.pos.y;
+    });
+
+    for (let i = 0; i < Math.round((-this.gravity / 100) * this.density); i++) {
+      this.createDot();
+    }
+    this.dots = this.dots.filter(dot => dot.alive);
+    this.dots.forEach(dot => {
+      dot.update(this.gravity);
     });
   }
 }
 
-const inputs = [
-  {
-    pos: {
-      x: width / 2,
-      y: 800
-    }
-  },
-  new Mouse()
-];
-
-const states = {
-  scene: 3
-};
-
-const setup = () => {
-  const colors = [0xe75b80, 0x409edb, 0xf7ca00];
-
-  class Dot {
-    constructor(sprite, y) {
-      this.t = Math.random() * 100 + 20;
-      this.alive = true;
-      this.posX = Math.random() * width;
-      this.pos = new Vec2(this.posX, y);
-
-      this.targetPos = new Vec2(this.posX, y);
-
-      this.mass = 2 + Math.random() * 2;
-      this.frequency = Math.random() * 10;
-      this.amplitude = 50 + Math.random() * 20;
-      this.color = [colors[Math.floor(Math.random() * colors.length)], 1];
-      this.size = Math.random() * 60 + 20;
-
-      this.sprite = sprite;
-    }
-    update(gravity) {
-      this.t += 0.01;
-
-      this.targetPos.x =
-        this.posX + Math.sin(this.t * this.frequency) * this.amplitude;
-
-      this.targetPos.y += gravity * this.mass;
-
-      this.pos.x = ease(this.pos.x, this.targetPos.x, 0.2);
-      this.pos.y = ease(this.pos.y, this.targetPos.y, 0.2);
-
-      if (this.pos.y < -100) {
-        this.alive = false;
-        this.sprite.visible = false;
+class Magnetic extends Base {
+  constructor() {
+    super();
+    this.particleContainer = new PIXI.particles.ParticleContainer(10000, {
+      rotation: true,
+      tint: true,
+      scale: true
+      // uvs: true,
+      // vertices: true,
+    });
+    this.container.addChild(this.particleContainer);
+    this.rects = [];
+    this.size = 90;
+    this.margin = 70;
+    this.r = 800;
+    this.initGrid();
+  }
+  initGrid() {
+    for (let i = 0; i < width + this.size; i += this.size + this.margin) {
+      for (let j = 0; j < height + this.size; j += this.size + this.margin) {
+        const sprite = new PIXI.Sprite(resources["./assets/line.png"].texture);
+        sprite.anchor.set(0.5);
+        sprite.x = i;
+        sprite.y = j;
+        // sprite.tint = 0xffffff;
+        sprite.tint = 0x00b5ff;
+        sprite.width = this.size;
+        sprite.height = this.size;
+        this.particleContainer.addChild(sprite);
+        this.rects.push(sprite);
       }
-      this.color[1] = Math.abs(Math.sin(this.t));
-      // ======================
+    }
+  }
+  update(delta) {
+    this.t += delta;
+
+    this.rects.forEach(rect => {
+      let alphaTarget = Math.abs(
+        noise.simplex3(rect.x / 1000, rect.y / 1000, this.t / 100)
+      );
+      let rotationTarget = noise.simplex3(
+        rect.x / 1000,
+        rect.y / 1000,
+        this.t / 10
+      );
+      let sizeTarget = this.size;
+
       for (let i = 0; i < inputs.length; i++) {
         const input = inputs[i];
-        const vector = this.pos.clone().subtract(input.pos);
-        const angleX = vector.angleTo(new Vec2(1, 0));
-        const angleY = vector.angleTo(new Vec2(0, 1));
-        const F = 20000 / vector.length();
-        const forceX = Math.cos(angleX) * F;
-        const forceY = Math.cos(angleY) * F;
-        this.pos.x += forceX;
-        this.pos.y += forceY;
+        const vector = new Vec2(rect.x - input.x, rect.y - input.y);
+        if (vector.length() < this.r) {
+          // sizeTarget = this.size * (vector.length() / (this.r * 2));
+          alphaTarget = this.r / vector.length();
+          let angle = new Vec2(0, 1).angleTo(vector);
+          rotationTarget = angle + (Math.PI * 3) / 4;
+        }
       }
-      // ======================
-      this.render();
-    }
-    render() {
-      this.sprite.x = this.pos.x;
-      this.sprite.y = this.pos.y;
-      this.sprite.tint = this.color[0];
-      this.sprite.alpha = this.color[1];
-      this.sprite.width = this.size;
-      this.sprite.height = this.size;
-    }
+
+      rect.width = ease(this.size, sizeTarget, 0.5);
+      rect.height = ease(this.size, sizeTarget, 0.5);
+
+      rect.alpha = ease(rect.alpha, alphaTarget, 0.1);
+      rect.rotation = ease(rect.rotation, rotationTarget, 0.1);
+    });
+
+    this.render();
   }
+  render() {}
+}
 
-  class DotSystem {
-    constructor() {
-      this.t = 0;
-      this.pool = [];
-      this.gravity = -3;
-      this.dots = [];
-      this.density = 20;
-      this.container = new PIXI.Container();
-
-      this.inputSprites = [];
-
-      for (let i = 0; i < inputs.length; i++) {
-        const sprite = new PIXI.Sprite(resources["./assets/ring.png"].texture);
-        this.inputSprites.push(sprite);
-        sprite.tint = 0xf7ca00;
-        sprite.width = 600;
-        sprite.height = 600;
+class Grid extends Base {
+  constructor() {
+    super();
+    this.particleContainer = new PIXI.particles.ParticleContainer(10000, {
+      rotation: true,
+      tint: true,
+      scale: true
+      // uvs: true,
+      // vertices: true,
+    });
+    this.container.addChild(this.particleContainer);
+    this.rects = [];
+    this.size = 90;
+    this.margin = 70;
+    this.initGrid();
+    this.r = 400;
+  }
+  initGrid() {
+    for (let i = 0; i < width + this.size; i += this.size + this.margin) {
+      for (let j = 0; j < height + this.size; j += this.size + this.margin) {
+        const sprite = new PIXI.Sprite(resources["./assets/rect.png"].texture);
         sprite.anchor.set(0.5);
-        this.container.addChild(sprite);
-      }
-
-      this.particleContainer = new PIXI.particles.ParticleContainer(10000, {
-        scale: true,
-        position: true,
-        rotation: true,
-        uvs: true,
-        alpha: true
-      });
-
-      this.container.addChild(this.particleContainer);
-
-      for (let i = 0; i < 3000; i++) {
-        const sprite = new PIXI.Sprite(
-          resources["./assets/circle.png"].texture
-        );
-        sprite.anchor.set(0.5);
-        this.pool.push(sprite);
-        sprite.visible = false;
+        sprite.x = i;
+        sprite.y = j;
+        // sprite.tint = 0xffffff;
+        sprite.tint = 0x00b5ff;
+        sprite.width = this.size;
+        sprite.height = this.size;
         this.particleContainer.addChild(sprite);
+        this.rects.push(sprite);
       }
-
-      for (let i = 0; i < 500; i++) {
-        this.createDot(Math.random() * height);
-      }
-    }
-    enter() {
-      this.gravity = -50;
-    }
-    leave() {
-      this.gravity = 10;
-    }
-    createDot(y = height) {
-      for (let i = 0; i < this.pool.length; i++) {
-        if (!this.pool[i].visible) {
-          this.pool[i].visible = true;
-          const dot = new Dot(this.pool[i], y);
-          this.dots.push(dot);
-          break;
-        }
-      }
-    }
-    update(delta) {
-      for (let i = 0; i < inputs.length; i++) {
-        this.inputSprites[i].x = inputs[i].pos.x;
-        this.inputSprites[i].y = inputs[i].pos.y;
-      }
-
-      this.t += delta;
-      for (
-        let i = 0;
-        i < Math.round((-this.gravity / 100) * this.density);
-        i++
-      ) {
-        this.createDot();
-      }
-
-      this.dots = this.dots.filter(dot => dot.alive);
-
-      this.dots.forEach(dot => {
-        dot.update(this.gravity);
-      });
     }
   }
+  update(delta) {
+    this.t += delta;
 
-  class Grid {
-    constructor() {
-      this.container = new PIXI.Container();
-      this.particleContainer = new PIXI.particles.ParticleContainer(30000, {
-        scale: true,
-        position: true,
-        rotation: true,
-        uvs: true,
-        alpha: true
-      });
-
-      this.inputSprites = [];
+    this.rects.forEach(rect => {
+      let alphaTarget =
+        Math.abs(noise.simplex3(rect.x / 1000, rect.y / 1000, this.t / 100)) /
+        2;
+      let sizeTarget = this.size;
 
       for (let i = 0; i < inputs.length; i++) {
-        const sprite = new PIXI.Sprite(resources["./assets/ring.png"].texture);
-        this.inputSprites.push(sprite);
-        sprite.tint = 0xf7ca00;
-        sprite.width = 600;
-        sprite.height = 600;
-        sprite.anchor.set(0.5);
-        this.container.addChild(sprite);
-      }
-
-      this.rects = [];
-      this.size = 110;
-      // this.size = 20;
-      this.initGrid();
-      this.t = 0;
-      this.container.addChild(this.particleContainer);
-    }
-    initGrid() {
-      for (let i = 0; i < width + this.size; i += this.size + 40) {
-        for (let j = 0; j < height + this.size; j += this.size + 40) {
-          const sprite = new PIXI.Sprite(
-            resources["./assets/trangle.png"].texture
-          );
-          sprite.anchor.set(0.5);
-          sprite.x = i;
-          sprite.y = j;
-          // sprite.tint = 0xffffff;
-          // sprite.tint = 0x00b5ff;
-          sprite.rotation = Math.random() * Math.PI;
-          sprite.width = this.size;
-          sprite.height = this.size;
-          this.particleContainer.addChild(sprite);
-          this.rects.push(sprite);
+        const input = inputs[i];
+        const vector = new Vec2(rect.x - input.x, rect.y - input.y);
+        if (vector.length() < this.r) {
+          sizeTarget = this.size * (vector.length() / (this.r * 2));
+          alphaTarget = this.r / vector.length();
         }
       }
-    }
-    update(delta) {
-      for (let i = 0; i < inputs.length; i++) {
-        this.inputSprites[i].x = inputs[i].pos.x;
-        this.inputSprites[i].y = inputs[i].pos.y;
-      }
 
-      this.t += delta;
-      this.render();
-    }
-    render() {
-      this.rects.forEach(rect => {
-        rect.alpha = Math.abs(
-          noise.simplex3(rect.x / 600, rect.y / 600, this.t / 100)
-        );
-        // rect.scale.set(
-        //   Math.abs(noise.simplex3(rect.x / 600, rect.y / 600, this.t / 100) * 3)
-        // );
-        rect.tint = 0x000000;
-        for (let i = 0; i < inputs.length; i++) {
-          const input = inputs[i];
-          const vector = new Vec2(rect.x - input.pos.x, rect.y - input.pos.y);
+      rect.width = ease(this.size, sizeTarget, 0.5);
+      rect.height = ease(this.size, sizeTarget, 0.5);
 
-          if (vector.length() < 600) {
-            let angle = new Vec2(0, 1).angleTo(vector);
-            rect.rotation = angle;
-          } else {
-            rect.rotation += 0.01;
-          }
-        }
-      });
-    }
+      rect.alpha = ease(rect.alpha, alphaTarget, 0.1);
+    });
+
+    this.render();
   }
+  render() {}
+}
 
-  class Corss {
-    constructor() {
-      this.container = new PIXI.Container();
-      this.particleContainer = new PIXI.particles.ParticleContainer(30000, {
-        scale: true,
-        position: true,
-        rotation: true,
-        uvs: true,
-        alpha: true
-      });
-      this.rects = [];
-      this.size = 30;
-      this.initGrid();
-      this.t = 0;
-      this.container.addChild(this.particleContainer);
-    }
-    initGrid() {
-      for (let i = 0; i < width; i += this.size + 100) {
-        for (let j = 0; j < height; j += this.size + 100) {
-          const sprite = new PIXI.Sprite(
-            resources["./assets/crossbig.png"].texture
-          );
-          sprite.x = i;
-          sprite.y = j;
-          sprite.tint = 0x000000;
-          sprite.width = this.size;
-          sprite.height = this.size;
-          this.particleContainer.addChild(sprite);
-          this.rects.push(sprite);
-        }
-      }
-    }
-    update(delta) {
-      this.t += delta;
-      this.render();
-    }
-    render() {
-      this.rects.forEach(rect => {
-        rect.width = this.size;
-        rect.height = this.size;
-
-        rect.alpha =
-          Math.abs(noise.simplex3(rect.x / 300, rect.y / 300, this.t / 100)) /
-          2;
-
-        for (let i = 0; i < inputs.length; i++) {
-          const input = inputs[i];
-          const vector = new Vec2(rect.x - input.pos.x, rect.y - input.pos.y);
-          if (vector.length() < 400) {
-            rect.width = this.size * 2;
-            rect.height = this.size * 2;
-          }
-        }
-      });
-    }
-  }
-
-  class Rect {
-    constructor() {
-      this.container = new PIXI.Container();
-      this.particleContainer = new PIXI.particles.ParticleContainer(30000, {
-        scale: true,
-        position: true,
-        rotation: true,
-        uvs: true,
-        alpha: true
-      });
-
-      this.inputSprites = [];
-
-      for (let i = 0; i < inputs.length; i++) {
-        const sprite = new PIXI.Sprite(resources["./assets/ring.png"].texture);
-        this.inputSprites.push(sprite);
-        sprite.tint = 0xf7ca00;
-        sprite.width = 600;
-        sprite.height = 600;
-        sprite.anchor.set(0.5);
-        this.container.addChild(sprite);
-      }
-
-      this.rects = [];
-      this.size = 110;
-      // this.size = 20;
-      this.initGrid();
-      this.t = 0;
-      this.container.addChild(this.particleContainer);
-    }
-    initGrid() {
-      for (let i = 0; i < width + this.size; i += this.size + 70) {
-        for (let j = 0; j < height + this.size; j += this.size + 70) {
-          const sprite = new PIXI.Sprite(
-            resources["./assets/rect.png"].texture
-          );
-          sprite.anchor.set(0.5);
-          sprite.x = i;
-          sprite.y = j;
-          // sprite.tint = 0xffffff;
-          // sprite.tint = 0x00b5ff;
-          sprite.rotation = Math.random() * Math.PI;
-          sprite.width = this.size;
-          sprite.height = this.size;
-          this.particleContainer.addChild(sprite);
-          this.rects.push(sprite);
-        }
-      }
-    }
-    update(delta) {
-      for (let i = 0; i < inputs.length; i++) {
-        this.inputSprites[i].x = inputs[i].pos.x;
-        this.inputSprites[i].y = inputs[i].pos.y;
-      }
-
-      this.t += delta;
-      this.render();
-    }
-    render() {
-      this.rects.forEach(rect => {
-        rect.alpha = Math.abs(
-          noise.simplex3(rect.x / 600, rect.y / 600, this.t / 100)
-        );
-        rect.scale.set(
-          Math.abs(noise.simplex3(rect.x / 600, rect.y / 600, this.t / 100) * 3)
-        );
-        rect.tint = 0xff49c5;
-        for (let i = 0; i < inputs.length; i++) {
-          const input = inputs[i];
-          const vector = new Vec2(rect.x - input.pos.x, rect.y - input.pos.y);
-
-          if (vector.length() < 600) {
-            rect.scale.set(vector.length() / 600);
-            let angle = new Vec2(0, 1).angleTo(vector);
-            rect.rotation = angle;
-          } else {
-            rect.rotation += 0.01;
-          }
-        }
-      });
-    }
-  }
-
-  class Trace {
-    constructor() {
-      this.container = new PIXI.Container();
-
-      this.layer = new PIXI.display.Layer();
-      this.layer.useRenderTexture = true;
-      this.layer.useDoubleBuffer = true;
-      var trailSprite = new PIXI.Sprite(this.layer.getRenderTexture());
-      trailSprite.alpha = 0.9;
-      this.layer.addChild(trailSprite);
-
-      this.container.addChild(this.layer);
-      var showLayer = new PIXI.Sprite(this.layer.getRenderTexture());
-      this.container.addChild(showLayer);
-
-      this.circles = [];
-      for (let i = 0; i < 1000; i++) {
-        const sprite = new PIXI.Sprite(
-          resources["./assets/circle.png"].texture
-        );
-        sprite.tint = 0x000000;
-        sprite.x = Math.random() * width;
-        sprite.y = Math.random() * height;
-        sprite.speed = Math.random() * 10;
-        const size = Math.random() * 20;
-        sprite.width = size;
-        sprite.height = size;
-        this.layer.addChild(sprite);
-        this.circles.push(sprite);
-      }
-    }
-    update() {
-      this.render();
-    }
-    render() {
-      this.circles.forEach(circle => {
-        circle.x += circle.speed;
-        circle.y += circle.speed;
-        if (circle.x > width + 100) {
-          circle.x = circle.x - width;
-        }
-        if (circle.y > height + 100) {
-          circle.y = circle.y - height;
-        }
-      });
-    }
-  }
-
-  // const ds = new DotSystem();
-  // container.addChild(ds.container);
-  // const grid = new Grid();
-  // container.addChild(grid.container);
-  // const corss = new Corss();
-  // container.addChild(corss.container);
-  // const rect = new Rect();
-  // container.addChild(rect.container);
-
-  const trace = new Trace();
-  container.addChild(trace.container);
+//================================================================
+//================================================================
+//================================================================
+//================================================================
+//================================================================
+//================================================================
+const states = {
+  scene: 2
+};
+const setup = () => {
+  const magetic = new Magnetic();
+  const gird = new Grid();
+  const line = new Line();
 
   app.ticker.add(delta => {
-    // ds.container.visible = false;
-    // grid.container.visible = false;
-    // corss.container.visible = false;
-    // rect.container.visible = false;
-
-    trace.update();
-
-    // if (states.scene === 0) {
-    //   ds.container.visible = true;
-    //   ds.update(delta);
-    //   corss.container.visible = true;
-    //   corss.update(delta);
-    // }
-    // if (states.scene === 1) {
-    //   grid.container.visible = true;
-    //   grid.update(delta);
-    // }
-    // if (states.scene === 2) {
-    //   rect.container.visible = true;
-    //   rect.update(delta);
-    // }
+    gird.container.visible = false;
+    magetic.container.visible = false;
+    line.container.visible = false;
+    if (states.scene === 0) {
+      magetic.container.visible = true;
+      magetic.update(delta);
+    }
+    if (states.scene === 1) {
+      gird.container.visible = true;
+      gird.update(delta);
+    }
+    if (states.scene === 2) {
+      line.container.visible = true;
+      line.update(delta);
+    }
   });
 };
 
 PIXI.loader
   .add([
+    "./assets/straight.png",
     "./assets/line.png",
     "./assets/circle.png",
     "./assets/rect.png",
