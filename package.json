@@ -1,0 +1,24 @@
+{
+  "name": "installation_olympics_curling",
+  "version": "1.0.0",
+  "description": "Interactive Curling Experience @ National Stadium",
+  "main": "controller.js",
+  "dependencies": {
+    "electron": "^2.0.5",
+    "em-pipe": "^1.0.7"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Emerge/Installation_Olympics_Curling.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Emerge/Installation_Olympics_Curling/issues"
+  },
+  "homepage": "https://github.com/Emerge/Installation_Olympics_Curling#readme"
+}
