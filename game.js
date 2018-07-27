@@ -86,8 +86,6 @@ function checkForGameover() {
       value: 0
     });
     vm.$data.gameover = true;
-  } else {
-    vm.$data.gameover = false;
   }
 }
 
@@ -103,6 +101,9 @@ function checkForNewGame() {
       sock.emit("all", "reset");
       return;
     } else {
+      vm.$data.gaming = false;
+      vm.$data.distance = 0;
+      vm.$data.gameover = false;
       states.game.id = states.control.gameId;
       states.game.launched = false;
       return;
@@ -111,6 +112,7 @@ function checkForNewGame() {
     states.game.launched = true;
     launchBall();
   } else if (states.game.launched && states.control.launched) {
+    vm.$data.gaming = true;
     checkForGameover();
   }
 }
@@ -1120,6 +1122,7 @@ const vm = new Vue({
   el: "#box",
   data: {
     gameover: false,
-    distance: 0
+    distance: 0,
+    gaming: false
   }
 });
