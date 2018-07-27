@@ -5,14 +5,199 @@
         * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
+            font-family: "PingFang SC";
+        }
+
+        #box {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            overflow: hidden;
+        }
+
+        .distance {
+            position: absolute;
+            bottom: 0;
+            background: #ccc;
+            right: 100px;
+        }
+
+        .distance .center {
+            width: 10px;
+            height: 400px;
+            background: #ae2128;
+        }
+
+        .distance .center .top {
+            width: 60px;
+            height: 10px;
+            background: #ae2128;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .distance .text {
+            position: absolute;
+            top: 50px;
+            right: 50px;
+        }
+
+        .distance .text .text-block {
+            text-align: right;
+            background: #ae2128;
+            margin-bottom: 5px;
+            padding: 10px 20px;
+            color: #fff;
+            font-size: 50px;
+            width: max-content;
+            right: 0;
+            position: absolute;
+        }
+
+        .distance .text .text-block.b {
+            top: 100px;
+        }
+
+        .final {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            padding-top: 2000px;
+            transition: opacity 0.5s ease;
+            opacity: 0;
+        }
+
+        .final.active {
+            opacity: 1;
+        }
+
+        .final .button1 {
+            padding: 30px 200px;
+            background: #0d3676;
+            color: #fff;
+            border-radius: 100px;
+            font-size: 84px;
+        }
+
+        .final .num {
+            color: #0d3676;
+        }
+
+        .final .num.a {
+            margin: 100px;
+            font-size: 400px;
+        }
+
+        .final .num.b {
+            margin: 50px;
+            font-size: 200px;
+        }
+
+        .final .button2 {
+            border: 10px solid #0d3676;
+            color: #0d3676;
+            font-size: 130px;
+            font-weight: bold;
+            padding: 0px 150px;
+            border-radius: 200px;
+            height: 250px;
+            line-height: 250px;
+            margin-bottom: 300px;
+        }
+
+        .final .dot-line {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 80%;
+            height: 10px;
+            background: #ae2128;
+        }
+
+        .final .dot-line div {
+            background: #fff;
+            left: 50%;
+            transform: translateX(-50%);
+            position: absolute;
+            font-size: 100px;
+            padding: 40px;
+            font-weight: bold;
+            color: #ae2128;
+        }
+
+        .final .dot-line span {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #ae2128;
+        }
+
+        .final .result {
+            width: 1000px;
+            height: 1000px;
+            background: red;
+            margin: 200px 0;
+        }
+
+        .final .congratulation {
+            color: #ae2128;
+            font-size: 100px;
+            margin-top: 100px;
+            font-weight: bold;
         }
     </style>
 </head>
 
 <body>
+    <div id="box">
+        <div class="distance">
+            <div class="center" :style={height:`${distance}px`}>
+                <div class="top"></div>
+            </div>
+            <div class="text">
+                <div class="text-block">运动距离</div>
+                <div class="text-block b">18cm</div>
+            </div>
+        </div>
+        <div :class="['final',{active:gameover}]">
+            <div class="button1 a">你的离心距离</div>
+            <div class="num a">32CM</div>
+            <div class="button1 a">使对手离心距离</div>
+            <div class="num b">32CM</div>
+            <div class="button2">游戏结束</div>
+            <div class="dot-line">
+                <span></span>
+                <span></span>
+                <div>获得成就</div>
+            </div>
+
+            <div class="result"></div>
+
+            <div class="dot-line">
+                <span></span>
+                <span></span>
+            </div>
+            <div class="congratulation">恭喜您进入下一挑战目标</div>
+
+        </div>
+    </div>
+
     <script src='/socket.io/socket.io.js'></script>
+    <script src="js/vue.min.js"></script>
     <script src='js/matter.js'></script>
     <script src='js/pixi.js'></script>
+    <script src="js/pixi-layers.js"></script>
     <script src="js/vec2.min.js"></script>
     <script src="js/perlin.js"></script>
     <script src='game.js'></script>
