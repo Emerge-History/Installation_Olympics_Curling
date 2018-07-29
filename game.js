@@ -4,7 +4,7 @@ var updatables = [];
 const DEBUG = true;
 
 var states = {
-  scene: 0,
+  scene: 2,
   balls: [],
   game: {
     id: -1,
@@ -140,7 +140,7 @@ function checkForGameover() {
       value: 0
     });
     vm.$data.gameover = true;
-    
+
     // check alive balls
 
     var f_player = false;
@@ -610,6 +610,7 @@ function setup() {
       sprite.width = width;
       sprite.height = height;
       sprite.tint = 0xffffff;
+      this.bgSprite = sprite;
       this.container.addChild(sprite);
     }
   }
@@ -617,6 +618,7 @@ function setup() {
   class Line extends Base {
     constructor() {
       super();
+      // this.bgSprite.tint = 0x000000;
       this.pool = [];
       this.gravity = -10;
       this.dots = [];
@@ -624,7 +626,7 @@ function setup() {
 
       this.randomDots = [];
 
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 5; i++) {
         const sprite = new PIXI.Sprite(
           resources["./assets/circle.png"].texture
         );
@@ -639,7 +641,8 @@ function setup() {
         sprite.x = input.pos.x;
         sprite.y = input.pos.y;
         this.randomDots.push(input);
-        this.container.addChild(sprite);
+        // sprite.tint = 0x000000;
+        // this.container.addChild(sprite);
       }
 
       const layer = new PIXI.display.Layer();
@@ -693,7 +696,7 @@ function setup() {
             mass: 2 + Math.random() * 2,
             frequency: Math.random() * 10,
             amplitude: 50 + Math.random() * 20,
-            color: [0xffffff, 1],
+            color: [0x000000, 1],
             size: Math.random() * 20 + 20,
             sprite,
             update(gravity) {
@@ -713,32 +716,35 @@ function setup() {
               const updateForce = (posArr, k) => {
                 for (let i = 0; i < posArr.length; i++) {
                   const input = posArr[i];
-                  // const vector = new Vec2(input.x, input.y).subtract(this.pos);
-                  // const length = vector.length();
-                  // let F = k / Math.pow(length, 2);
+                  const vector = new Vec2(input.x, input.y).subtract(this.pos);
+                  const length = vector.length();
+                  let F = (k * 100) / Math.pow(length, 2);
                   // F = Math.min(F, 100);
-                  // const forceX = (vector.x / length) * F;
-                  // const forceY = (vector.y / length) * F;
-                  // this.pos.x -= forceX;
-                  // this.pos.y -= forceY;
+                  const forceX = (vector.x / length) * F;
+                  const forceY = (vector.y / length) * F;
+                  this.pos.x -= forceX;
+                  this.pos.y -= forceY;
 
-                  const vector = this.pos
-                    .clone()
-                    .subtract(new Vec2(input.x, input.y));
-                  const angleX = vector.angleTo(new Vec2(1, 0));
-                  const angleY = vector.angleTo(new Vec2(0, 1));
-                  const F = k / vector.length();
-                  const forceX = Math.sin(angleX) * F;
-                  const forceY = Math.sin(angleY) * F;
-                  this.pos.x += forceX;
-                  this.pos.y += forceY;
+                  // const vector = this.pos
+                  //   .clone()
+                  //   .subtract(new Vec2(input.x, input.y));
+                  // const angleX = vector.angleTo(new Vec2(1, 0));
+                  // const angleY = vector.angleTo(new Vec2(0, 1));
+                  // const F = k / vector.length();
+                  // const forceX = Math.sin(angleX) * F;
+                  // const forceY = Math.sin(angleY) * F;
+                  // this.pos.x += forceX;
+                  // this.pos.y += forceY;
                 }
               };
 
-              if (!this.invincible) {
-                updateForce(inputs, 40000);
-                updateForce(randomDots.map(randomDot => randomDot.pos), 20000);
-              }
+              // if (!this.invincible) {
+              //   updateForce(inputs, 40000);
+              //   updateForce(randomDots.map(randomDot => randomDot.pos), 20000);
+              // }
+
+              updateForce(inputs, 40000);
+              updateForce(randomDots.map(randomDot => randomDot.pos), 20000);
 
               this.sprite.x = (this.pos.clone().x + prevPos.x) / 2;
               this.sprite.y = (this.pos.clone().y + prevPos.y) / 2;
@@ -1239,17 +1245,17 @@ const vm = new Vue({
     },
 
     pagePlayerDistance: function() {
-      if(this.playerDistance === null) {
-        return null
+      if (this.playerDistance === null) {
+        return null;
       }
-      if(this.playerDistance === -1) {
-        return '出界'
+      if (this.playerDistance === -1) {
+        return "出界";
       }
       return `${this.playerDistance.toFixed(2)}m`;
     },
 
     pageLastPlayerMoving: function() {
-      if(this.lastPlayerMoving === null) {
+      if (this.lastPlayerMoving === null) {
         return null;
       }
       if (this.lastPlayerMoving === -1) {
