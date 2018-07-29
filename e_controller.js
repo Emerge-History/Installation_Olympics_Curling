@@ -1,6 +1,6 @@
 const { app, BrowserWindow } = require("electron");
 
-const { exec } = require('child_process');
+const { exec } = require("child_process");
 
 exec('"em-pipe"', (err, stdout, stderr) => {
   if (err) {
@@ -11,16 +11,14 @@ exec('"em-pipe"', (err, stdout, stderr) => {
   console.log(stderr);
 });
 
-
-
 let mainWindow;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
     show: false,
-    alwaysOnTop:true,
-    // frame: false,
-    // fullscreen: true
+    alwaysOnTop: true,
+    frame: false,
+    fullscreen: true
   });
 
   mainWindow.once("ready-to-show", () => {

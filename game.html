@@ -108,7 +108,15 @@
         .final .num.b {
             margin: 50px;
             font-size: 200px;
+            display: flex;
+            align-items: baseline;
         }
+
+        .final .num.b .small {
+            font-size: 100px;
+            color: #5f5f5f;
+        }
+
 
         .final .button2 {
             border: 10px solid #0d3676;
@@ -173,14 +181,18 @@
             </div>
             <div class="text">
                 <div class="text-block">运动距离</div>
-                <div class="text-block b">{{parseInt(distance/100)}}cm</div>
+                <div class="text-block b">{{map( distance, 0, height, 0, 40 ).toFixed(2)}}m
+                </div>
             </div>
         </div>
         <div :class="['final',{active:gameover}]">
             <div class="button1 a">你的离心距离</div>
-            <div class="num a">32CM</div>
-            <div class="button1 a">使对手离心距离</div>
-            <div class="num b">32CM</div>
+            <div class="num a">{{pagePlayerDistance}}</div>
+            <div class="button1 a">对手离心距离</div>
+            <div class="num b">
+                {{pageLastPlayerMoving}}
+                <div class="small">{{pageLastPlayerMovingChange}}</div>
+            </div>
             <div class="button2">游戏结束</div>
             <div class="dot-line">
                 <span></span>
@@ -194,7 +206,7 @@
                 <span></span>
                 <span></span>
             </div>
-            <div class="congratulation">恭喜您进入下一挑战目标</div>
+            <div v-if="contain" class="congratulation">恭喜您进入下一挑战目标</div>
 
         </div>
     </div>

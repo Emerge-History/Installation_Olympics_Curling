@@ -16,6 +16,18 @@ var states = {
 };
 
 function launchBall() {
+  // clone
+  states.balls.forEach(item => {
+    item.clonePosition = {
+      x: item.body.position.x,
+      y: item.body.position.y
+    };
+  });
+  isSleepFlag = false;
+  vm.$data.playerDistance = null;
+  vm.$data.lastPlayerMoving = null;
+  vm.$data.lastPlayerMovingChange = null;
+
   var ball = new CurlingBall();
   ball.isPlayer = 1;
   ball.setPosition(width / 2, height + 200);
@@ -30,6 +42,12 @@ function launchBall() {
   force = Matter.Vector.rotate(force, states.control.angle);
   Matter.Body.applyForce(ball.body, { x: width / 2, y: height + 200 }, force);
   Matter.Body.setAngularVelocity(ball.body, (Math.random() - 0.5) * 0.1);
+  vm.$data.distance = 0;
+
+  ball.bodyClone = {
+    speed: null,
+    initFlag: false
+  };
 }
 
 function getPlayer() {
@@ -51,6 +69,8 @@ function ease(cur, target, c, precision) {
 function map(t, a, b, c, d) {
   return ((t - a) / (b - a)) * (d - c) + c;
 }
+
+let isSleepFlag = false;
 
 function checkForGameover() {
   var moving = 0;
@@ -75,17 +95,76 @@ function checkForGameover() {
   }
   states.balls = newballs;
 
-  if (moving == 0) {
-    for (var i = 0; i < states.balls.length; i++) {
-      if (!states.balls[i].isMaxScore) {
-        states.balls[i].life = 0;
-      }
+  // 每次都要计算
+  states.balls.forEach(b => {
+    if (b.isPlayer) {
+      var real = Matter.Vector.magnitude(
+        Matter.Vector.sub(b.body.position, centerPosition)
+      );
+      var mapReal = map(real, 0, height, 0, 35);
+      vm.$data.playerDistance = mapReal;
+    } else {
+      var real1 = Matter.Vector.magnitude(
+        Matter.Vector.sub(b.body.position, centerPosition)
+      );
+      var mapReal1 = map(real1, 0, height, 0, 35); // now
+
+      var real2 = Matter.Vector.magnitude(
+        Matter.Vector.sub(b.clonePosition, centerPosition)
+      );
+      var mapReal2 = map(real2, 0, height, 0, 35); // last
+      vm.$data.lastPlayerMoving = mapReal1;
+
+      var temp = mapReal1 - mapReal2;
+      vm.$data.lastPlayerMovingChange = temp;
     }
+  });
+
+  if (moving == 0 && !isSleepFlag) {
+    isSleepFlag = true;
+
+    // todo
+    states.balls.forEach(b => {
+      if (b.isPlayer) {
+        if (b.isOutside()) {
+          vm.$data.playerDistance = -1;
+        }
+      } else {
+        if (b.isOutside()) {
+          vm.$data.lastPlayerMoving = -1;
+        }
+      }
+    });
     sock.emit("all", {
       key: "gameover",
       value: 0
     });
     vm.$data.gameover = true;
+    
+    // check alive balls
+
+    var f_player = false;
+    var f_lastPlayer = false;
+    states.balls.forEach(b => {
+      if (b.isPlayer) {
+        f_player = true;
+      } else {
+        f_lastPlayer = true;
+      }
+    });
+
+    // nouse
+    if (!f_player) {
+      vm.$data.playerDistance = -1;
+    }
+
+    if (!f_lastPlayer) {
+      if (vm.$data.lastPlayerMoving === null) {
+        vm.$data.lastPlayerMoving = -2;
+      } else {
+        vm.$data.lastPlayerMoving = -1;
+      }
+    }
   }
 }
 
@@ -102,6 +181,17 @@ function checkForNewGame() {
       return;
     } else {
       vm.$data.gaming = false;
+
+      var tempArray = [];
+      for (var i = 0; i < states.balls.length; i++) {
+        if (!states.balls[i].isMaxScore) {
+          states.balls[i].life = 0;
+        } else {
+          tempArray.push(states.balls[i]);
+        }
+      }
+      states.balls = tempArray;
+
       vm.$data.distance = 0;
       vm.$data.gameover = false;
       states.game.id = states.control.gameId;
@@ -250,8 +340,15 @@ class CurlingBall {
 
     this.isMaxScore = false;
     this._isMaxScore = 0;
-    this.color = binghuColors[random(0, binghuColors.length - 1)];
-
+    if (states.balls[0]) {
+      if (states.balls[0].color === "red") {
+        this.color = "yellow";
+      } else {
+        this.color = "red";
+      }
+    } else {
+      this.color = binghuColors[random(0, binghuColors.length - 1)];
+    }
     this.texture = resources[binghuKV[this.color][0]].texture;
     this.container = new PIXI.Container();
 
@@ -268,12 +365,14 @@ class CurlingBall {
     this.winnerRing.blendMode = PIXI.BLEND_MODES.MULTIPLY;
     this.winnerRing.width = this.winnerRing.height = 400;
 
+    // playerRing
     this.playerRing = new PIXI.Sprite(
       resources["./assets/playerRing.png"].texture
     );
     this.playerRing.scale.set(0.8);
     center(this.playerRing, 0, 0);
     this.container.addChild(this.playerRing);
+    // playerRing
 
     // brush
     this.brush1Container = new PIXI.Container();
@@ -311,10 +410,7 @@ class CurlingBall {
     speedText.anchor.set(0.5);
     speedText.y = -250;
     this.speedText = speedText;
-
     this.speedContainer.addChild(speedText);
-
-    // this.container
     this.container.addChild(this.speedContainer);
     const halfCircle = new PIXI.Sprite(
       resources["./assets/halfCircle.png"].texture
@@ -405,10 +501,18 @@ class CurlingBall {
   }
 
   update(t, dt) {
-    this._isMaxScore += ((this.isMaxScore ? 1 : 0) - this._isMaxScore) * 0.2;
-    this.winnerRing.alpha = this._isMaxScore * (this.isPlayer ? 0 : 1);
+    if (!this.bodyClone.initFlag && this.body.speed !== 0) {
+      this.bodyClone.speed = this.body.speed;
+      this.bodyClone.initFlag = true;
+    }
 
-    this.playerRing.visible = this.isPlayer;
+    this._isMaxScore += ((this.isMaxScore ? 1 : 0) - this._isMaxScore) * 0.2;
+    // this.winnerRing.alpha =
+    //   this._isMaxScore * (this.isPlayer || states.game.over ? 0 : 1);
+    this.winnerRing.alpha = 0;
+
+    this.playerRing.visible =
+      states.game.launched && !states.control.gameover && this.isPlayer;
 
     this.winnerRing.rotation += 0.02;
     this._life += (this.life - this._life) * 0.1;
@@ -501,6 +605,12 @@ function setup() {
       this.t = 0;
       this.container = new PIXI.Container();
       container.addChild(this.container);
+
+      const sprite = new PIXI.Sprite(resources["./assets/rect.png"].texture);
+      sprite.width = width;
+      sprite.height = height;
+      sprite.tint = 0xffffff;
+      this.container.addChild(sprite);
     }
   }
 
@@ -514,11 +624,10 @@ function setup() {
 
       this.randomDots = [];
 
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 3; i++) {
         const sprite = new PIXI.Sprite(
           resources["./assets/circle.png"].texture
         );
-        this.container.addChild(sprite);
         sprite.anchor.set(0.5);
         const input = {
           pos: new Vec2(random(100, width - 100), random(500, height - 500)),
@@ -561,6 +670,9 @@ function setup() {
         sprite.visible = false;
         this.particleContainer.addChild(sprite);
       }
+      for (let i = 0; i < 1000; i++) {
+        this.createDot(Math.random() * height);
+      }
     }
     createDot(y = 0) {
       for (let i = 0; i < this.pool.length; i++) {
@@ -601,20 +713,31 @@ function setup() {
               const updateForce = (posArr, k) => {
                 for (let i = 0; i < posArr.length; i++) {
                   const input = posArr[i];
-                  const vector = new Vec2(input.x, input.y).subtract(this.pos);
-                  const length = vector.length();
-                  let F = k / Math.pow(length, 2);
-                  F = Math.min(F, 100);
-                  const forceX = (vector.x / length) * F;
-                  const forceY = (vector.y / length) * F;
-                  this.pos.x -= forceX;
-                  this.pos.y -= forceY;
+                  // const vector = new Vec2(input.x, input.y).subtract(this.pos);
+                  // const length = vector.length();
+                  // let F = k / Math.pow(length, 2);
+                  // F = Math.min(F, 100);
+                  // const forceX = (vector.x / length) * F;
+                  // const forceY = (vector.y / length) * F;
+                  // this.pos.x -= forceX;
+                  // this.pos.y -= forceY;
+
+                  const vector = this.pos
+                    .clone()
+                    .subtract(new Vec2(input.x, input.y));
+                  const angleX = vector.angleTo(new Vec2(1, 0));
+                  const angleY = vector.angleTo(new Vec2(0, 1));
+                  const F = k / vector.length();
+                  const forceX = Math.sin(angleX) * F;
+                  const forceY = Math.sin(angleY) * F;
+                  this.pos.x += forceX;
+                  this.pos.y += forceY;
                 }
               };
 
               if (!this.invincible) {
-                updateForce(inputs, 2000000);
-                updateForce(randomDots.map(randomDot => randomDot.pos), 500000);
+                updateForce(inputs, 40000);
+                updateForce(randomDots.map(randomDot => randomDot.pos), 20000);
               }
 
               this.sprite.x = (this.pos.clone().x + prevPos.x) / 2;
@@ -673,7 +796,6 @@ function setup() {
   class Magnetic extends Base {
     constructor() {
       super();
-
       this.forcePoints = [];
       this.particleContainer = new PIXI.particles.ParticleContainer(10000, {
         rotation: true,
@@ -684,116 +806,10 @@ function setup() {
       this.rects = [];
       this.size = 40;
       this.margin = this.size / 2;
-      this.r = 300;
       this.initGrid();
-    }
-    initGrid() {
-      for (let i = 0; i < width + this.size; i += this.size + this.margin) {
-        for (let j = 0; j < height + this.size; j += this.size + this.margin) {
-          const sprite = new PIXI.Sprite(
-            resources["./assets/line.png"].texture
-          );
-          sprite.anchor.set(0.5);
-          sprite.x = i;
-          sprite.y = j;
-          sprite.tint = 0x00b5ff;
-          sprite.width = this.size;
-          sprite.height = this.size;
-          this.particleContainer.addChild(sprite);
-          this.rects.push(sprite);
-        }
-      }
-    }
-    update(delta) {
-      this.t += delta;
-
-      // if (this.forcePoints.length < 20 && Math.random() > 0.93) {
-      //   this.forcePoints.push({
-      //     v: [0, -100 + Math.random() * -1000],
-      //     p: [Math.random() * width, height],
-      //     m: Math.random() * 200 + 100
-      //   });
-      // }
-
-      // this.forcePoints.forEach(dot => {
-      //   dot.p[0] += (dot.v[0] * delta) / 60;
-      //   dot.p[1] += (dot.v[1] * delta) / 60;
-      //   dot.decay = Math.pow((dot.p[1] - height / 2) / (height / 2), 6) + 1;
-      //   if (dot.p[1] < 0) {
-      //     dot.p[1] += height;
-      //   }
-      // });
-
-      this.rects.forEach(rect => {
-        let alphaTarget = Math.abs(
-          noise.simplex3(rect.x / 1000, rect.y / 1000, this.t / 1000)
-        );
-        let rotationTarget = noise.simplex3(
-          rect.x / 5000,
-          rect.y / 5000,
-          this.t / 100
-        );
-
-        // var fx = 0;
-        // var fy = 0;
-        // var G = 100000;
-        // for (var j = 0; j < this.forcePoints.length; j++) {
-        //   let dx = rect.x - this.forcePoints[j].p[0];
-        //   let dy = rect.y - this.forcePoints[j].p[1];
-        //   var dsq = dx * dx + dy * dy + 1;
-        //   let d = Math.sqrt(dsq);
-        //   let g = Math.min(
-        //     500,
-        //     (G * this.forcePoints[j].m * this.forcePoints[j].decay) / dsq
-        //   );
-        //   fx += (dx / d) * g;
-        //   fy += (dy / d) * g;
-        // }
-
-        // var df = Math.min(300, Math.sqrt(fx * fx + fy * fy));
-        // rotationTarget = Math.atan2(fy, fx) + Math.PI / 4;
-        // let sizeTarget = df;
-        let sizeTarget = this.size;
-
-        for (let i = 0; i < inputs.length; i++) {
-          const input = inputs[i];
-          const vector = new Vec2(rect.x - input.x, rect.y - input.y);
-          if (vector.length() < this.r) {
-            sizeTarget = this.size * (vector.length() / (this.r * 2));
-            alphaTarget = this.r / vector.length() / 1.5;
-            let angle = new Vec2(0, 1).angleTo(vector);
-            rotationTarget = angle + (Math.PI * 3) / 4;
-          }
-        }
-        rect.width = ease(this.size, sizeTarget, 0.5);
-        rect.height = ease(this.size, sizeTarget, 0.5);
-        rect.rotation = ease(rect.rotation, rotationTarget, 0.1);
-      });
-
-      this.render();
-    }
-    render() {}
-  }
-
-  class Grid extends Base {
-    constructor() {
-      super();
-      this.particleContainer = new PIXI.particles.ParticleContainer(10000, {
-        rotation: true,
-        tint: true,
-        scale: true
-      });
-
-      this.container.addChild(this.particleContainer);
-      this.rects = [];
-      this.size = 40;
-      this.margin = this.size / 2;
-      this.initGrid();
-      this.r = 400;
 
       this.randomDots = [];
-
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 5; i++) {
         const sprite = new PIXI.Sprite(
           resources["./assets/circle.png"].texture
         );
@@ -815,12 +831,12 @@ function setup() {
       for (let i = 0; i < width + this.size; i += this.size + this.margin) {
         for (let j = 0; j < height + this.size; j += this.size + this.margin) {
           const sprite = new PIXI.Sprite(
-            resources["./assets/rect.png"].texture
+            resources["./assets/line.png"].texture
           );
           sprite.anchor.set(0.5);
           sprite.x = i;
           sprite.y = j;
-          sprite.tint = 0xffffff;
+          sprite.tint = 0x000000;
           sprite.width = this.size;
           sprite.height = this.size;
           this.particleContainer.addChild(sprite);
@@ -852,6 +868,117 @@ function setup() {
 
       this.rects.forEach(rect => {
         let alphaTarget =
+          Math.abs(noise.simplex3(rect.x / 500, rect.y / 5000, this.t / 100)) /
+          1.5;
+
+        let rotationTarget = noise.simplex3(
+          rect.x / 500,
+          rect.y / 500,
+          this.t / 100
+        );
+
+        let sizeTarget = this.size;
+
+        const updateForce = (posArr, r) => {
+          for (let i = 0; i < posArr.length; i++) {
+            const input = posArr[i];
+            const vector = new Vec2(rect.x - input.x, rect.y - input.y);
+            if (vector.length() < r) {
+              sizeTarget = this.size * (vector.length() / (r * 2));
+              alphaTarget = 1;
+              let angle = new Vec2(0, 1).angleTo(vector);
+              rotationTarget = angle + (Math.PI * 3) / 4 + this.t / 50;
+            }
+          }
+        };
+
+        updateForce(this.randomDots.map(randomDot => randomDot.pos), 200);
+        updateForce(inputs, 350);
+
+        rect.alpha = ease(rect.alpha, alphaTarget, 0.08);
+        // rect.width = ease(this.size, sizeTarget, 0.5);
+        // rect.height = ease(this.size, sizeTarget, 0.5);
+        rect.rotation = ease(rect.rotation, rotationTarget, 0.5);
+      });
+
+      this.render();
+    }
+    render() {}
+  }
+
+  class Grid extends Base {
+    constructor() {
+      super();
+      this.particleContainer = new PIXI.particles.ParticleContainer(10000, {
+        rotation: true,
+        tint: true,
+        scale: true
+      });
+      this.container.addChild(this.particleContainer);
+      this.rects = [];
+      this.size = 40;
+      this.margin = this.size / 2;
+      this.initGrid();
+      this.r = 400;
+
+      // this.randomDots = [];
+      // for (let i = 0; i < 10; i++) {
+      //   const sprite = new PIXI.Sprite(resources["./assets/circle.png"].texture);
+      //   sprite.anchor.set(0.5);
+      //   const input = {
+      //     pos: new Vec2(random(100, width - 100), random(500, height - 500)),
+      //     type: 1,
+      //     sprite,
+      //     speed: Math.random() * 10 + 3,
+      //     direction: [random(-10, 10), random(-10, 10)]
+      //   };
+      //   sprite.x = input.pos.x;
+      //   sprite.y = input.pos.y;
+      //   this.randomDots.push(input);
+      //   // this.container.addChild(sprite);
+      // }
+    }
+    initGrid() {
+      for (let i = 0; i < width + this.size; i += this.size + this.margin) {
+        for (let j = 0; j < height + this.size; j += this.size + this.margin) {
+          const sprite = new PIXI.Sprite(
+            resources["./assets/rect.png"].texture
+          );
+          sprite.anchor.set(0.5);
+          sprite.x = i;
+          sprite.y = j;
+          sprite.tint = 0;
+          sprite.width = this.size;
+          sprite.height = this.size;
+          this.particleContainer.addChild(sprite);
+          this.rects.push(sprite);
+        }
+      }
+    }
+    update(delta) {
+      this.t += delta;
+
+      // this.randomDots.forEach(randomDot => {
+      //   randomDot.pos.x += (randomDot.direction[0] * randomDot.speed) / 10;
+      //   randomDot.pos.y += (randomDot.direction[1] * randomDot.speed) / 10;
+      //   if (randomDot.pos.y < -100) {
+      //     randomDot.pos.y = height + 100;
+      //   }
+      //   if (randomDot.pos.y > height + 100) {
+      //     randomDot.pos.y = -100;
+      //   }
+      //   if (randomDot.pos.x < -100) {
+      //     randomDot.pos.x = width + 100;
+      //   }
+      //   if (randomDot.pos.x > width + 100) {
+      //     randomDot.pos.x = -100;
+      //   }
+      //   randomDot.sprite.x = randomDot.pos.x;
+      //   randomDot.sprite.y = randomDot.pos.y;
+      // });
+
+      this.rects.forEach(rect => {
+        let alphaTarget =
           Math.abs(noise.simplex3(rect.x / 100, rect.y / 100, this.t / 100)) /
           2;
         let sizeTarget = this.size;
@@ -862,12 +989,13 @@ function setup() {
             const vector = new Vec2(rect.x - input.x, rect.y - input.y);
             if (vector.length() < r) {
               sizeTarget = this.size * (vector.length() / (r * 2));
-              alphaTarget = r / vector.length();
+              rect.alpha += r / vector.length();
+              rect.alpha = Math.min(rect.alpha, 1);
             }
           }
         };
 
-        updateForce(this.randomDots.map(randomDot => randomDot.pos), 100);
+        // updateForce(this.randomDots.map(randomDot => randomDot.pos), 100);
         updateForce(inputs, 400);
 
         rect.width = ease(this.size, sizeTarget, 0.5);
@@ -888,27 +1016,27 @@ function setup() {
     });
   });
 
-  // const magetic = new Magnetic();
-  // const gird = new Grid();
-  // const line = new Line();
+  const magetic = new Magnetic();
+  const gird = new Grid();
+  const line = new Line();
 
   loop((time, delta) => {
     delta = delta / 10;
-    // gird.container.visible = false;
-    // magetic.container.visible = false;
-    // line.container.visible = false;
-    // if (states.scene === 0) {
-    //   magetic.container.visible = true;
-    //   magetic.update(delta);
-    // }
-    // if (states.scene === 1) {
-    //   gird.container.visible = true;
-    //   gird.update(delta);
-    // }
-    // if (states.scene === 2) {
-    //   line.container.visible = true;
-    //   line.update(delta);
-    // }
+    gird.container.visible = false;
+    magetic.container.visible = false;
+    line.container.visible = false;
+    if (states.scene === 0) {
+      magetic.container.visible = true;
+      magetic.update(delta);
+    }
+    if (states.scene === 1) {
+      gird.container.visible = true;
+      gird.update(delta);
+    }
+    if (states.scene === 2) {
+      line.container.visible = true;
+      line.update(delta);
+    }
   });
 
   // ======================================================
@@ -935,51 +1063,11 @@ function setup() {
 
   // ====================================
   const playerInfo = new PIXI.Container();
-
   const playerDash = new PIXI.Sprite(
     resources["./assets/playerDash.png"].texture
   );
   center(playerDash, width / 2, height);
   playerInfo.addChild(playerDash);
-
-  // const playerLineCenter = new PIXI.Sprite(
-  //   resources["./assets/playerLine1.png"].texture
-  // );
-  // playerLineCenter.anchor.set(0.5, 1);
-  // playerLineCenter.x = width - 100;
-  // playerLineCenter.y = height;
-  // playerInfo.addChild(playerLineCenter);
-
-  const playerLineTop = new PIXI.Sprite(
-    resources["./assets/playerLine2.png"].texture
-  );
-  playerLineTop.anchor.set(0.5);
-  playerLineTop.x = width - 100;
-  playerLineTop.y = height;
-  playerInfo.addChild(playerLineTop);
-
-  // const playerDistance1Text = new PIXI.Text("运动距离", {
-  //   fontWeight: "bold",
-  //   fontSize: 50,
-  //   fontFamily: "PingFang SC",
-  //   fill: "#ccc",
-  //   align: "right"
-  // });
-  // playerDistance1Text.anchor.set(0.5);
-  // playerDistance1Text.x = width - 240;
-
-  // const playerDistance2Text = new PIXI.Text("", {
-  //   fontWeight: "bold",
-  //   fontSize: 50,
-  //   fontFamily: "PingFang SC",
-  //   fill: "#ccc",
-  //   align: "right"
-  // });
-  // playerDistance2Text.anchor.set(0.5);
-  // playerDistance2Text.x = width - 240;
-
-  // playerInfo.addChild(playerDistance1Text);
-  // playerInfo.addChild(playerDistance2Text);
   container.addChild(playerInfo);
   // ====================================
 
@@ -1000,15 +1088,12 @@ function setup() {
   }
 
   update();
-  // var c = new CurlingBall();
-  // window.c = c;
-  // c.setPosition(width / 2, height);
 
   var aimContainer = new PIXI.Container();
 
   var aimRing = new PIXI.Sprite(resources["./assets/aimring.png"].texture);
   var aimBtn = new PIXI.Sprite(resources["./assets/aimbtn.png"].texture);
-  var aimText = new PIXI.Text("测试", {
+  var aimText = new PIXI.Text("角度 0°", {
     fontFamily: "PingFang SC",
     fontSize: 50,
     fill: 0xffffff,
@@ -1054,8 +1139,12 @@ function setup() {
       1,
       states.econtrol.angle_enabled + states.econtrol.selecting_power
     );
-    aimText.text =
-      "角度 " + Math.floor((states.control.angle / Math.PI) * 1800) / 10 + "°";
+    if (states.control && states.control.angle) {
+      aimText.text =
+        "角度 " +
+        Math.floor((states.control.angle / Math.PI) * 1800) / 10 +
+        "°";
+    }
     aimContainer.alpha = show_angler;
     aimDash.tilePosition.y += -4.1;
     aimRotator.rotation = states.econtrol.angle || 0;
@@ -1068,44 +1157,48 @@ function setup() {
 
   loop(() => {
     states.balls.forEach(ball => {
-      if (ball.isPlayer) {
+      if (states.game.launched && ball.isPlayer && !states.control.gameover) {
         ball.brush1Container.visible = true;
         ball.brush2Container.visible = true;
         ball.speedContainer.visible = true;
+        playerInfo.visible = true;
       } else {
         ball.brush1Container.visible = false;
         ball.brush2Container.visible = false;
         ball.speedContainer.visible = false;
+        playerInfo.visible = false;
       }
     });
 
     const player = getPlayer();
-    playerInfo.visible = false;
     if (player) {
-      playerInfo.visible = true;
-
-      const y = player.container.y;
-      // playerLineCenter.height = height - y;
-      vm.$data.distance = height - y;
-
-      playerDash.y = y;
-      playerLineTop.y = y;
-      // playerDistance1Text.y = y + 50;
-      // playerDistance2Text.y = y + 150;
-      // playerDistance2Text.text = `19cm`;
+      if (player.body.position.y < height) {
+        vm.$data.distance = height - player.body.position.y;
+        playerDash.y = player.body.position.y;
+      }
 
       // TODO
       player.brush1Container.rotation += 0.01;
       player.brush2Container.rotation -= 0.01;
-      const sp = player.speedContainer;
-      sp.clear();
-      sp.lineStyle(16, 0xae2128, 1);
-      sp.arc(0, 0, 186, Math.PI, Math.PI + Math.PI / 3, false);
-      sp.lineTo();
-      player.angleText.text = `角度 -2°`;
-      player.speedText.text = `速度 ${player.brush1Container.rotation.toFixed(
-        2
-      )}m/s`;
+
+      if (player.bodyClone.speed !== null) {
+        const sp = player.speedContainer;
+        sp.clear();
+        sp.lineStyle(16, 0xae2128, 1);
+        sp.arc(
+          0,
+          0,
+          186,
+          Math.PI,
+          Math.PI + Math.PI * (player.body.speed / player.bodyClone.speed),
+          false
+        );
+        sp.lineTo();
+      }
+      //
+      player.angleText.text = `角度 ${player.body.angle.toFixed(2)}°`;
+
+      player.speedText.text = `速度 ${(player.body.speed / 10).toFixed(2)}m/s`;
     }
   });
   // ====================
@@ -1123,6 +1216,70 @@ const vm = new Vue({
   data: {
     gameover: false,
     distance: 0,
-    gaming: false
+    gaming: false,
+    playerDistance: null,
+    lastPlayerMoving: null,
+    lastPlayerMovingChange: null
+  },
+  computed: {
+    contain: function() {
+      if (this.playerDistance > 0) {
+        if (this.lastPlayerMoving > 0) {
+          if (this.playerDistance > this.lastPlayerMoving) {
+            return false;
+          } else {
+            return true;
+          }
+        } else {
+          return true;
+        }
+      } else {
+        return false;
+      }
+    },
+
+    pagePlayerDistance: function() {
+      if(this.playerDistance === null) {
+        return null
+      }
+      if(this.playerDistance === -1) {
+        return '出界'
+      }
+      return `${this.playerDistance.toFixed(2)}m`;
+    },
+
+    pageLastPlayerMoving: function() {
+      if(this.lastPlayerMoving === null) {
+        return null;
+      }
+      if (this.lastPlayerMoving === -1) {
+        return "出界";
+      }
+      if (this.lastPlayerMoving === -2) {
+        return "不存在";
+      }
+      return `${this.lastPlayerMoving.toFixed(2)}m`;
+    },
+
+    pageLastPlayerMovingChange: function() {
+      var temp = this.lastPlayerMovingChange;
+      if (this.lastPlayerMoving === -1 || this.lastPlayerMoving === -2) {
+        return "";
+      }
+
+      if (temp === null) {
+        return "";
+      }
+
+      if (Math.abs(temp) > 0.1) {
+        if (temp > 0) {
+          return `增加${Math.abs(temp).toFixed(2)}`;
+        } else {
+          return `减少${Math.abs(temp).toFixed(2)}`;
+        }
+      } else {
+        return "";
+      }
+    }
   }
 });
