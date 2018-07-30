@@ -1,6 +1,14 @@
 var sock = io("/");
 var updatables = [];
 
+function radToDeg(r) {
+  return (r * 180) / Math.PI;
+}
+
+function degToRad(d) {
+  return (d * Math.PI) / 180;
+}
+
 const DEBUG = true;
 
 var states = {
@@ -125,8 +133,12 @@ function checkForGameover() {
   if (moving == 0 && !isSleepFlag) {
     isSleepFlag = true;
 
-    // todo
+
+    var winnerColor = 'red';
     states.balls.forEach(b => {
+      if(b.isMaxScore) {
+        winnerColor = b.color;
+      }
       if (b.isPlayer) {
         if (b.isOutside()) {
           vm.$data.playerDistance = -1;
@@ -137,7 +149,10 @@ function checkForGameover() {
         }
       }
     });
+
+
     sock.emit("all", {
+      winnerColor,
       key: "gameover",
       value: 0
     });
@@ -183,6 +198,7 @@ function checkForNewGame() {
       return;
     } else {
       vm.$data.gaming = false;
+      states.control.angle = 0;
 
       var tempArray = [];
       for (var i = 0; i < states.balls.length; i++) {
@@ -342,15 +358,11 @@ class CurlingBall {
 
     this.isMaxScore = false;
     this._isMaxScore = 0;
-    if (states.balls[0]) {
-      if (states.balls[0].color === "red") {
-        this.color = "yellow";
-      } else {
-        this.color = "red";
-      }
-    } else {
-      this.color = binghuColors[random(0, binghuColors.length - 1)];
-    }
+
+
+    this.color = states.control.color
+
+
     this.texture = resources[binghuKV[this.color][0]].texture;
     this.container = new PIXI.Container();
 
@@ -481,9 +493,9 @@ class CurlingBall {
 
   isOutside() {
     return (
-      this.body.position.x < -160 ||
-      this.body.position.y < -160 ||
-      this.body.position.x > width + 160 ||
+      this.body.position.x < -80 ||
+      this.body.position.y < -80 ||
+      this.body.position.x > width + 80 ||
       this.body.position.y > height + 1800
     );
   }
@@ -1152,6 +1164,8 @@ function setup() {
         "角度 " +
         Math.floor((states.control.angle / Math.PI) * 1800) / 10 +
         "°";
+    } else {
+      aimText.text = `角度 0°`;
     }
     aimContainer.alpha = show_angler;
     aimDash.tilePosition.y += -4.1;
@@ -1203,8 +1217,20 @@ function setup() {
         );
         sp.lineTo();
       }
-      //
-      player.angleText.text = `角度 ${player.body.angle.toFixed(2)}°`;
+
+      var a = Matter.Vector.create(0, -height); //
+      var b = Matter.Vector.create(
+        player.container.x - width / 2,
+        player.container.y - height
+      );
+      // var a = Matter.Vector.create(
+      //   player.container.x - width / 2,
+      //   player.container.y - height
+      // );
+      // var b = Matter.Vector.create(width / 2, -height);
+      var rad = Matter.Vector.angle(a, b);
+
+      player.angleText.text = `角度 ${(radToDeg(rad) - 90).toFixed(2)}°`;
 
       player.speedText.text = `速度 ${(player.body.speed / 10).toFixed(2)}m/s`;
     }
@@ -1299,24 +1325,26 @@ const vm = new Vue({
             return "佛系选手";
           }
         } else {
-          if (this.playerDistance < 2) {
-            return "专业选手";
-          }
-          //
+          // player有数据
           if (this.lastPlayerMoving === -1) {
             return "击球大师";
           }
           if (this.lastPlayerMoving !== null && this.lastPlayerMoving > 0) {
-            if (this.lastPlayerMovingChange < 0) {
-              if (this.playerDistance > this.lastPlayerMoving) {
+            if (this.playerDistance < this.lastPlayerMoving) {
+              // win
+              return "专业选手";
+            } else {
+              // lose
+              if (this.lastPlayerMovingChange < 0) {
                 return "助人为乐";
               }
+              return "再接再厉";
             }
           }
-          //
         }
         return "再接再厉";
       }
+      return "";
     }
   }
 });

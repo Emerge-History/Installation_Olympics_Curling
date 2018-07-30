@@ -82,6 +82,7 @@ scene.position.y = h / 2;
 var textures = {
   square: "./assets/square.png",
   stone: "./assets/binghu-red/binghu0001.png",
+  stone2: "./assets/binghu-yellow/binghu0001.png",
   shade: "./assets/shade.png",
   hand_push: "./assets/controller/an.png",
   icon_handle: "./assets/controller/shoubing.png",
@@ -239,10 +240,23 @@ for (var i = 0; i < MAX_LEN; i++) {
       controlstate.launched = 0;
     } else if (d["key"] == "gameover") {
       controlstate.gameover = 1;
+
+      if (d["winnerColor"] === "red") {
+        controlstate.color = "yellow";
+      } else {
+        controlstate.color = "red";
+      }
+
+      if (controlstate.color === "red") {
+        ball.texture = textures.stone;
+      } else {
+        ball.texture = textures.stone2;
+      }
     }
   });
 
   var controlstate = {
+    color: "red",
     reset: 1,
 
     hint_angle: 0,
