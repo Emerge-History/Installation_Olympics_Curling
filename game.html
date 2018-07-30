@@ -114,9 +114,10 @@
 
         .final .num.b .small {
             font-size: 100px;
-            color: #5f5f5f;
+            margin-left: 50px;
+            position: relative;
+            top: -12px;
         }
-
 
         .final .button2 {
             border: 10px solid #0d3676;
@@ -128,6 +129,14 @@
             height: 250px;
             line-height: 250px;
             margin-bottom: 300px;
+        }
+
+        .final .ach-container {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
         }
 
         .final .dot-line {
@@ -158,10 +167,86 @@
         }
 
         .final .result {
-            width: 1000px;
-            height: 1000px;
-            background: red;
             margin: 200px 0;
+            font-size: 200px;
+            color: #ae2128;
+            font-weight: bold;
+            position: relative;
+            height: 800px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @keyframes float {
+            from {
+                transform: translateY(30%)
+            }
+            to {
+                transform: translateY(-30%)
+            }
+        }
+
+        .final .result .c1 {
+            width: 236px;
+            height: 207px;
+            background: url('./assets/c1.png') no-repeat center;
+            background-size: cover;
+            position: absolute;
+            right: 20px;
+            top: 100px;
+            animation: float 5s ease-in-out infinite alternate;
+        }
+
+        .final .result .c2 {
+            width: 594px;
+            height: 552px;
+            background: url('./assets/c2.png') no-repeat center;
+            background-size: cover;
+            position: absolute;
+            left: 240px;
+            top: 100px;
+            animation: float 6s ease-in-out infinite alternate;
+            animation-delay: 600;
+        }
+
+        .final .result .c3 {
+            width: 365px;
+            height: 340px;
+            background: url('./assets/c3.png') no-repeat center;
+            background-size: cover;
+            position: absolute;
+            right: 260px;
+            top: 501px;
+            animation: float 5s ease-in-out infinite alternate;
+        }
+
+        .final .result .c4 {
+            width: 218px;
+            height: 175px;
+            background: url('./assets/c4.png') no-repeat center;
+            background-size: cover;
+            position: absolute;
+            left: 20px;
+            top: 600px;
+            animation: float 5.5s ease-in-out infinite alternate;
+            animation-delay: 1000;
+        }
+
+        .final .result .text {
+            font-size: 200px;
+            overflow: hidden;
+            letter-spacing: 30px;
+            z-index: 0;
+            position: relative;
+            z-index: 2;
+        }
+
+        .final .result .text::before {
+            content: attr(data-text);
+            position: absolute;
+            -webkit-text-stroke: 40px #ffffff;
+            z-index: -1;
         }
 
         .final .congratulation {
@@ -194,19 +279,27 @@
                 <div class="small">{{pageLastPlayerMovingChange}}</div>
             </div>
             <div class="button2">游戏结束</div>
-            <div class="dot-line">
-                <span></span>
-                <span></span>
-                <div>获得成就</div>
+
+            <div class="ach-container" v-if="achievement">
+                <div class="dot-line">
+                    <span></span>
+                    <span></span>
+                    <div>获得成就</div>
+                </div>
+                <div class="result">
+                    <div class="text" :data-text="achievement">{{achievement}}</div>
+                    <div class="c1"></div>
+                    <div class="c2"></div>
+                    <div class="c3"></div>
+                    <div class="c4"></div>
+                </div>
+                <div class="dot-line">
+                    <span></span>
+                    <span></span>
+                </div>
             </div>
 
-            <div class="result"></div>
-
-            <div class="dot-line">
-                <span></span>
-                <span></span>
-            </div>
-            <div v-if="contain" class="congratulation">恭喜您进入下一挑战目标</div>
+            <!-- <div v-if="contain" class="congratulation">恭喜您进入下一挑战目标</div> -->
 
         </div>
     </div>

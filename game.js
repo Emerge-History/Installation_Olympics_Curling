@@ -4,7 +4,7 @@ var updatables = [];
 const DEBUG = true;
 
 var states = {
-  scene: 2,
+  scene: 1,
   balls: [],
   game: {
     id: -1,
@@ -16,6 +16,8 @@ var states = {
 };
 
 function launchBall() {
+  vm.$data.achievement = "";
+
   // clone
   states.balls.forEach(item => {
     item.clonePosition = {
@@ -1022,27 +1024,27 @@ function setup() {
     });
   });
 
-  const magetic = new Magnetic();
-  const gird = new Grid();
-  const line = new Line();
+  // const magetic = new Magnetic();
+  // const gird = new Grid();
+  // const line = new Line();
 
   loop((time, delta) => {
     delta = delta / 10;
-    gird.container.visible = false;
-    magetic.container.visible = false;
-    line.container.visible = false;
-    if (states.scene === 0) {
-      magetic.container.visible = true;
-      magetic.update(delta);
-    }
-    if (states.scene === 1) {
-      gird.container.visible = true;
-      gird.update(delta);
-    }
-    if (states.scene === 2) {
-      line.container.visible = true;
-      line.update(delta);
-    }
+    // gird.container.visible = false;
+    // magetic.container.visible = false;
+    // line.container.visible = false;
+    // if (states.scene === 0) {
+    //   magetic.container.visible = true;
+    //   magetic.update(delta);
+    // }
+    // if (states.scene === 1) {
+    //   gird.container.visible = true;
+    //   gird.update(delta);
+    // }
+    // if (states.scene === 2) {
+    //   line.container.visible = true;
+    //   line.update(delta);
+    // }
   });
 
   // ======================================================
@@ -1285,6 +1287,35 @@ const vm = new Vue({
         }
       } else {
         return "";
+      }
+    },
+
+    achievement: function() {
+      if (this.playerDistance !== null) {
+        if (this.playerDistance === -1) {
+          if (this.lastPlayerMoving === -1) {
+            return "清场大师";
+          } else {
+            return "佛系选手";
+          }
+        } else {
+          if (this.playerDistance < 2) {
+            return "专业选手";
+          }
+          //
+          if (this.lastPlayerMoving === -1) {
+            return "击球大师";
+          }
+          if (this.lastPlayerMoving !== null && this.lastPlayerMoving > 0) {
+            if (this.lastPlayerMovingChange < 0) {
+              if (this.playerDistance > this.lastPlayerMoving) {
+                return "助人为乐";
+              }
+            }
+          }
+          //
+        }
+        return "再接再厉";
       }
     }
   }
