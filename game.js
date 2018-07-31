@@ -9,7 +9,7 @@ function degToRad(d) {
   return (d * Math.PI) / 180;
 }
 
-const DEBUG = false;
+const DEBUG = true;
 
 var states = {
   scene: 0,
@@ -998,7 +998,7 @@ function setup() {
       this.rects.forEach(rect => {
         let alphaTarget =
           Math.abs(noise.simplex3(rect.x / 100, rect.y / 100, this.t / 1000)) /
-          8;
+          3;
         let sizeTarget = this.size;
 
         const updateForce = (posArr, r, flag) => {
