@@ -9,7 +9,7 @@ function degToRad(d) {
   return (d * Math.PI) / 180;
 }
 
-const DEBUG = true;
+const DEBUG = false;
 
 var states = {
   scene: 0,
@@ -1049,11 +1049,23 @@ function setup() {
   const gird = new Grid();
   const line = new Line();
 
+  // to
+  let globalFlag = true;
+  setTimeout(function() {
+    globalFlag = false;
+  }, 2000);
+
   loop((time, delta) => {
     delta = delta / 10;
     gird.container.visible = false;
     magetic.container.visible = false;
     line.container.visible = false;
+
+    if (globalFlag) {
+      magetic.update(delta);
+      gird.update(delta);
+      // line.update(delta);
+    }
     if (states.scene === 0) {
       magetic.container.visible = true;
       magetic.update(delta);
