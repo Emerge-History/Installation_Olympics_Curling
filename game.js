@@ -12,7 +12,7 @@ function degToRad(d) {
 const DEBUG = true;
 
 var states = {
-  scene: 1,
+  scene: 0,
   balls: [],
   game: {
     id: -1,
@@ -133,10 +133,9 @@ function checkForGameover() {
   if (moving == 0 && !isSleepFlag) {
     isSleepFlag = true;
 
-
-    var winnerColor = 'red';
+    var winnerColor = "red";
     states.balls.forEach(b => {
-      if(b.isMaxScore) {
+      if (b.isMaxScore) {
         winnerColor = b.color;
       }
       if (b.isPlayer) {
@@ -149,7 +148,6 @@ function checkForGameover() {
         }
       }
     });
-
 
     sock.emit("all", {
       winnerColor,
@@ -199,6 +197,8 @@ function checkForNewGame() {
     } else {
       vm.$data.gaming = false;
       states.control.angle = 0;
+
+      states.scene = random(0,2)
 
       var tempArray = [];
       for (var i = 0; i < states.balls.length; i++) {
@@ -359,9 +359,7 @@ class CurlingBall {
     this.isMaxScore = false;
     this._isMaxScore = 0;
 
-
-    this.color = states.control.color
-
+    this.color = states.control.color;
 
     this.texture = resources[binghuKV[this.color][0]].texture;
     this.container = new PIXI.Container();
@@ -632,18 +630,15 @@ function setup() {
   class Line extends Base {
     constructor() {
       super();
-      // this.bgSprite.tint = 0x000000;
       this.pool = [];
-      this.gravity = -10;
+      this.gravity = -40;
       this.dots = [];
-      this.density = 60;
-
+      this.density = 80;
+  
       this.randomDots = [];
-
+  
       for (let i = 0; i < 5; i++) {
-        const sprite = new PIXI.Sprite(
-          resources["./assets/circle.png"].texture
-        );
+        const sprite = new PIXI.Sprite(resources["./assets/circle.png"].texture);
         sprite.anchor.set(0.5);
         const input = {
           pos: new Vec2(random(100, width - 100), random(500, height - 500)),
@@ -655,27 +650,26 @@ function setup() {
         sprite.x = input.pos.x;
         sprite.y = input.pos.y;
         this.randomDots.push(input);
-        // sprite.tint = 0x000000;
-        // this.container.addChild(sprite);
+        this.container.addChild(sprite);
       }
-
+  
       const layer = new PIXI.display.Layer();
       layer.useRenderTexture = true;
       layer.useDoubleBuffer = true;
       const trailSprite = new PIXI.Sprite(layer.getRenderTexture());
       layer.addChild(trailSprite);
-      trailSprite.alpha = 0.9;
+      trailSprite.alpha = 0.4;
       const showLayer = new PIXI.Sprite(layer.getRenderTexture());
-
+  
       this.container.addChild(layer);
       this.container.addChild(showLayer);
-
+  
       this.particleContainer = new PIXI.particles.ParticleContainer(10000, {
         rotation: true,
         tint: true,
         scale: true
       });
-
+  
       layer.addChild(this.particleContainer);
       // create pool
       for (let i = 0; i < 3000; i++) {
@@ -691,14 +685,14 @@ function setup() {
         this.createDot(Math.random() * height);
       }
     }
-    createDot(y = 0) {
+    createDot(y = -100) {
       for (let i = 0; i < this.pool.length; i++) {
         if (!this.pool[i].visible) {
           const sprite = this.pool[i];
           sprite.visible = true;
           const posX = Math.random() * width;
           const randomDots = this.randomDots;
-
+  
           const dot = {
             invincible: random(0, 8) === 0,
             t: Math.random() * 100 + 20,
@@ -708,9 +702,9 @@ function setup() {
             targetPos: new Vec2(posX, y),
             nextPos: new Vec2(posX, y),
             mass: 2 + Math.random() * 2,
-            frequency: Math.random() * 10,
+            frequency: Math.random() * 20,
             amplitude: 50 + Math.random() * 20,
-            color: [0x000000, 1],
+            color: [0xcccccc, Math.random()],
             size: Math.random() * 20 + 20,
             sprite,
             update(gravity) {
@@ -726,19 +720,20 @@ function setup() {
                 this.sprite.visible = false;
               }
               this.color[1] = Math.abs(Math.sin(this.t));
-
+  
               const updateForce = (posArr, k) => {
                 for (let i = 0; i < posArr.length; i++) {
                   const input = posArr[i];
+  
                   const vector = new Vec2(input.x, input.y).subtract(this.pos);
                   const length = vector.length();
-                  let F = (k * 100) / Math.pow(length, 2);
-                  // F = Math.min(F, 100);
+                  let F = k / Math.pow(length, 2);
+                  F = Math.min(F, 1000)*100;
                   const forceX = (vector.x / length) * F;
                   const forceY = (vector.y / length) * F;
                   this.pos.x -= forceX;
                   this.pos.y -= forceY;
-
+  
                   // const vector = this.pos
                   //   .clone()
                   //   .subtract(new Vec2(input.x, input.y));
@@ -751,27 +746,23 @@ function setup() {
                   // this.pos.y += forceY;
                 }
               };
-
-              // if (!this.invincible) {
-              //   updateForce(inputs, 40000);
-              //   updateForce(randomDots.map(randomDot => randomDot.pos), 20000);
-              // }
-
-              updateForce(inputs, 40000);
-              updateForce(randomDots.map(randomDot => randomDot.pos), 20000);
-
+  
+              if (!this.invincible) {
+                updateForce(inputs, 40000);
+                updateForce(randomDots.map(randomDot => randomDot.pos), 10000);
+              }
+  
               this.sprite.x = (this.pos.clone().x + prevPos.x) / 2;
               this.sprite.y = (this.pos.clone().y + prevPos.y) / 2;
               const vector = prevPos.subtract(this.pos.clone());
-              this.sprite.rotation =
-                Math.atan2(vector.y, vector.x) + Math.PI / 2;
+              this.sprite.rotation = Math.atan2(vector.y, vector.x) + Math.PI / 2;
               this.sprite.height = this.size * (vector.length() / 10);
               this.sprite.tint = this.color[0];
               this.sprite.alpha = this.color[1];
               this.sprite.width = this.size * 0.8;
             }
           };
-
+  
           this.dots.push(dot);
           break;
         }
@@ -779,7 +770,7 @@ function setup() {
     }
     update(delta) {
       this.t += delta;
-
+  
       this.randomDots.forEach(randomDot => {
         randomDot.pos.x += (randomDot.direction[0] * randomDot.speed) / 10;
         randomDot.pos.y += (randomDot.direction[1] * randomDot.speed) / 10;
@@ -798,12 +789,8 @@ function setup() {
         randomDot.sprite.x = randomDot.pos.x;
         randomDot.sprite.y = randomDot.pos.y;
       });
-
-      for (
-        let i = 0;
-        i < Math.round((-this.gravity / 100) * this.density);
-        i++
-      ) {
+  
+      for (let i = 0; i < Math.round((-this.gravity / 100) * this.density); i++) {
         this.createDot();
       }
       this.dots = this.dots.filter(dot => dot.alive);
@@ -851,7 +838,7 @@ function setup() {
       for (let i = 0; i < width + this.size; i += this.size + this.margin) {
         for (let j = 0; j < height + this.size; j += this.size + this.margin) {
           const sprite = new PIXI.Sprite(
-            resources["./assets/line.png"].texture
+            resources["./assets/trangle.png"].texture
           );
           sprite.anchor.set(0.5);
           sprite.x = i;
@@ -941,22 +928,24 @@ function setup() {
       this.initGrid();
       this.r = 400;
 
-      // this.randomDots = [];
-      // for (let i = 0; i < 10; i++) {
-      //   const sprite = new PIXI.Sprite(resources["./assets/circle.png"].texture);
-      //   sprite.anchor.set(0.5);
-      //   const input = {
-      //     pos: new Vec2(random(100, width - 100), random(500, height - 500)),
-      //     type: 1,
-      //     sprite,
-      //     speed: Math.random() * 10 + 3,
-      //     direction: [random(-10, 10), random(-10, 10)]
-      //   };
-      //   sprite.x = input.pos.x;
-      //   sprite.y = input.pos.y;
-      //   this.randomDots.push(input);
-      //   // this.container.addChild(sprite);
-      // }
+      this.randomDots = [];
+      for (let i = 0; i < 10; i++) {
+        const sprite = new PIXI.Sprite(
+          resources["./assets/circle.png"].texture
+        );
+        sprite.anchor.set(0.5);
+        const input = {
+          pos: new Vec2(random(100, width - 100), random(500, height - 500)),
+          type: 1,
+          sprite,
+          speed: Math.random() * 10 + 3,
+          direction: [random(-10, 10), random(-10, 10)]
+        };
+        sprite.x = input.pos.x;
+        sprite.y = input.pos.y;
+        this.randomDots.push(input);
+        // this.container.addChild(sprite);
+      }
     }
     initGrid() {
       for (let i = 0; i < width + this.size; i += this.size + this.margin) {
@@ -978,50 +967,63 @@ function setup() {
     update(delta) {
       this.t += delta;
 
-      // this.randomDots.forEach(randomDot => {
-      //   randomDot.pos.x += (randomDot.direction[0] * randomDot.speed) / 10;
-      //   randomDot.pos.y += (randomDot.direction[1] * randomDot.speed) / 10;
-      //   if (randomDot.pos.y < -100) {
-      //     randomDot.pos.y = height + 100;
-      //   }
-      //   if (randomDot.pos.y > height + 100) {
-      //     randomDot.pos.y = -100;
-      //   }
-      //   if (randomDot.pos.x < -100) {
-      //     randomDot.pos.x = width + 100;
-      //   }
-      //   if (randomDot.pos.x > width + 100) {
-      //     randomDot.pos.x = -100;
-      //   }
-      //   randomDot.sprite.x = randomDot.pos.x;
-      //   randomDot.sprite.y = randomDot.pos.y;
-      // });
+      this.randomDots.forEach(randomDot => {
+        randomDot.pos.x += (randomDot.direction[0] * randomDot.speed) / 10;
+        randomDot.pos.y += (randomDot.direction[1] * randomDot.speed) / 10;
+        if (randomDot.pos.y < -100) {
+          randomDot.pos.y = height + 100;
+        }
+        if (randomDot.pos.y > height + 100) {
+          randomDot.pos.y = -100;
+        }
+        if (randomDot.pos.x < -100) {
+          randomDot.pos.x = width + 100;
+        }
+        if (randomDot.pos.x > width + 100) {
+          randomDot.pos.x = -100;
+        }
+        randomDot.sprite.x = randomDot.pos.x;
+        randomDot.sprite.y = randomDot.pos.y;
+      });
 
       this.rects.forEach(rect => {
         let alphaTarget =
-          Math.abs(noise.simplex3(rect.x / 100, rect.y / 100, this.t / 100)) /
-          2;
+          Math.abs(noise.simplex3(rect.x / 100, rect.y / 100, this.t / 1000)) /
+          8;
         let sizeTarget = this.size;
 
-        const updateForce = (posArr, r) => {
+        const updateForce = (posArr, r, flag) => {
           for (let i = 0; i < posArr.length; i++) {
             const input = posArr[i];
             const vector = new Vec2(rect.x - input.x, rect.y - input.y);
             if (vector.length() < r) {
-              sizeTarget = this.size * (vector.length() / (r * 2));
-              rect.alpha += r / vector.length();
+              sizeTarget =
+                this.size *
+                (vector.length() / (r * 2)) *
+                Math.abs(Math.sin(this.t / 50 - vector.length() / 50));
+
+              if (!flag) {
+                rect.alpha += r / vector.length() / 100;
+              } else {
+                rect.alpha += r / vector.length();
+              }
+
               rect.alpha = Math.min(rect.alpha, 1);
             }
           }
         };
 
-        // updateForce(this.randomDots.map(randomDot => randomDot.pos), 100);
-        updateForce(inputs, 400);
+        updateForce(
+          this.randomDots.map(randomDot => randomDot.pos),
+          100,
+          false
+        );
+        updateForce(inputs, 400, true);
 
         rect.width = ease(this.size, sizeTarget, 0.5);
         rect.height = ease(this.size, sizeTarget, 0.5);
 
-        rect.alpha = ease(rect.alpha, alphaTarget, 0.1);
+        rect.alpha = ease(rect.alpha, alphaTarget, 0.05);
       });
 
       this.render();
@@ -1036,27 +1038,27 @@ function setup() {
     });
   });
 
-  // const magetic = new Magnetic();
-  // const gird = new Grid();
-  // const line = new Line();
+  const magetic = new Magnetic();
+  const gird = new Grid();
+  const line = new Line();
 
   loop((time, delta) => {
     delta = delta / 10;
-    // gird.container.visible = false;
-    // magetic.container.visible = false;
-    // line.container.visible = false;
-    // if (states.scene === 0) {
-    //   magetic.container.visible = true;
-    //   magetic.update(delta);
-    // }
-    // if (states.scene === 1) {
-    //   gird.container.visible = true;
-    //   gird.update(delta);
-    // }
-    // if (states.scene === 2) {
-    //   line.container.visible = true;
-    //   line.update(delta);
-    // }
+    gird.container.visible = false;
+    magetic.container.visible = false;
+    line.container.visible = false;
+    if (states.scene === 0) {
+      magetic.container.visible = true;
+      magetic.update(delta);
+    }
+    if (states.scene === 1) {
+      gird.container.visible = true;
+      gird.update(delta);
+    }
+    if (states.scene === 2) {
+      line.container.visible = true;
+      line.update(delta);
+    }
   });
 
   // ======================================================
@@ -1218,19 +1220,12 @@ function setup() {
         sp.lineTo();
       }
 
-      var a = Matter.Vector.create(0, -height); //
-      var b = Matter.Vector.create(
-        player.container.x - width / 2,
-        player.container.y - height
-      );
-      // var a = Matter.Vector.create(
-      //   player.container.x - width / 2,
-      //   player.container.y - height
-      // );
-      // var b = Matter.Vector.create(width / 2, -height);
-      var rad = Matter.Vector.angle(a, b);
+      var x1 = player.container.x - width / 2;
+      var y1 = player.container.y - height;
+      
+      var temp2 = radToDeg(Math.atan2(y1,x1))+90;
 
-      player.angleText.text = `角度 ${(radToDeg(rad) - 90).toFixed(2)}°`;
+      player.angleText.text = `角度 ${temp2.toFixed(2)}°`;
 
       player.speedText.text = `速度 ${(player.body.speed / 10).toFixed(2)}m/s`;
     }
@@ -1335,7 +1330,7 @@ const vm = new Vue({
               return "专业选手";
             } else {
               // lose
-              if (this.lastPlayerMovingChange < 0) {
+              if (this.lastPlayerMovingChange < -0.2) {
                 return "助人为乐";
               }
               return "再接再厉";

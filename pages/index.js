@@ -56,13 +56,13 @@ class Line extends Base {
   constructor() {
     super();
     this.pool = [];
-    this.gravity = -10;
+    this.gravity = -40;
     this.dots = [];
-    this.density = 60;
+    this.density = 80;
 
     this.randomDots = [];
 
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       const sprite = new PIXI.Sprite(resources["./assets/circle.png"].texture);
       sprite.anchor.set(0.5);
       const input = {
@@ -83,7 +83,7 @@ class Line extends Base {
     layer.useDoubleBuffer = true;
     const trailSprite = new PIXI.Sprite(layer.getRenderTexture());
     layer.addChild(trailSprite);
-    trailSprite.alpha = 0.9;
+    trailSprite.alpha = 0.4;
     const showLayer = new PIXI.Sprite(layer.getRenderTexture());
 
     this.container.addChild(layer);
@@ -110,7 +110,7 @@ class Line extends Base {
       this.createDot(Math.random() * height);
     }
   }
-  createDot(y = 0) {
+  createDot(y = -100) {
     for (let i = 0; i < this.pool.length; i++) {
       if (!this.pool[i].visible) {
         const sprite = this.pool[i];
@@ -127,9 +127,9 @@ class Line extends Base {
           targetPos: new Vec2(posX, y),
           nextPos: new Vec2(posX, y),
           mass: 2 + Math.random() * 2,
-          frequency: Math.random() * 10,
+          frequency: Math.random() * 20,
           amplitude: 50 + Math.random() * 20,
-          color: [0xffffff, 1],
+          color: [0xcccccc, Math.random()],
           size: Math.random() * 20 + 20,
           sprite,
           update(gravity) {
@@ -149,31 +149,32 @@ class Line extends Base {
             const updateForce = (posArr, k) => {
               for (let i = 0; i < posArr.length; i++) {
                 const input = posArr[i];
-                // const vector = new Vec2(input.x, input.y).subtract(this.pos);
-                // const length = vector.length();
-                // let F = k / Math.pow(length, 2);
-                // F = Math.min(F, 100);
-                // const forceX = (vector.x / length) * F;
-                // const forceY = (vector.y / length) * F;
-                // this.pos.x -= forceX;
-                // this.pos.y -= forceY;
 
-                const vector = this.pos
-                  .clone()
-                  .subtract(new Vec2(input.x, input.y));
-                const angleX = vector.angleTo(new Vec2(1, 0));
-                const angleY = vector.angleTo(new Vec2(0, 1));
-                const F = k / vector.length();
-                const forceX = Math.sin(angleX) * F;
-                const forceY = Math.sin(angleY) * F;
-                this.pos.x += forceX;
-                this.pos.y += forceY;
+                const vector = new Vec2(input.x, input.y).subtract(this.pos);
+                const length = vector.length();
+                let F = k / Math.pow(length, 2);
+                F = Math.min(F, 1000)*100;
+                const forceX = (vector.x / length) * F;
+                const forceY = (vector.y / length) * F;
+                this.pos.x -= forceX;
+                this.pos.y -= forceY;
+
+                // const vector = this.pos
+                //   .clone()
+                //   .subtract(new Vec2(input.x, input.y));
+                // const angleX = vector.angleTo(new Vec2(1, 0));
+                // const angleY = vector.angleTo(new Vec2(0, 1));
+                // const F = k / vector.length();
+                // const forceX = Math.sin(angleX) * F;
+                // const forceY = Math.sin(angleY) * F;
+                // this.pos.x += forceX;
+                // this.pos.y += forceY;
               }
             };
 
             if (!this.invincible) {
               updateForce(inputs, 40000);
-              updateForce(randomDots.map(randomDot => randomDot.pos), 20000);
+              updateForce(randomDots.map(randomDot => randomDot.pos), 10000);
             }
 
             this.sprite.x = (this.pos.clone().x + prevPos.x) / 2;
@@ -235,7 +236,7 @@ class Magnetic extends Base {
     });
     this.container.addChild(this.particleContainer);
     this.rects = [];
-    this.size = 40;
+    this.size = 45;
     this.margin = this.size / 2;
     this.initGrid();
 
@@ -259,11 +260,11 @@ class Magnetic extends Base {
   initGrid() {
     for (let i = 0; i < width + this.size; i += this.size + this.margin) {
       for (let j = 0; j < height + this.size; j += this.size + this.margin) {
-        const sprite = new PIXI.Sprite(resources["./assets/line.png"].texture);
+        const sprite = new PIXI.Sprite(resources["./assets/circle.png"].texture);
         sprite.anchor.set(0.5);
         sprite.x = i;
         sprite.y = j;
-        sprite.tint = 0xcccccc;
+        sprite.tint = 0x000000;
         sprite.width = this.size;
         sprite.height = this.size;
         this.particleContainer.addChild(sprite);
@@ -296,7 +297,7 @@ class Magnetic extends Base {
     this.rects.forEach(rect => {
       let alphaTarget = Math.abs(
         noise.simplex3(rect.x / 500, rect.y / 5000, this.t / 100)
-      )/1.5;
+      )/6;
 
       let rotationTarget = noise.simplex3(
         rect.x / 500,
@@ -306,28 +307,30 @@ class Magnetic extends Base {
 
       let sizeTarget = this.size;
 
-      const updateForce = (posArr, r) => {
+      const updateForce = (posArr, r, flag) => {
         for (let i = 0; i < posArr.length; i++) {
           const input = posArr[i];
           const vector = new Vec2(rect.x - input.x, rect.y - input.y);
           if (vector.length() < r) {
             sizeTarget = this.size * (vector.length() / (r * 2));
             alphaTarget = 1;
+
+
             let angle = new Vec2(0, 1).angleTo(vector);
-            rotationTarget = angle + (Math.PI * 3) / 4 +this.t/50;
+            rotationTarget = angle +this.t/50 ;//+this.t/50
           }
         }
       };
 
-      updateForce(this.randomDots.map(randomDot => randomDot.pos), 200);
-      updateForce(inputs, 350);
+      updateForce(this.randomDots.map(randomDot => randomDot.pos), 200, false);
+      updateForce(inputs, 350, true);
 
 
 
-      rect.alpha = ease(rect.alpha, alphaTarget, 0.08);
+      rect.alpha = ease(rect.alpha, alphaTarget, 0.2);
       // rect.width = ease(this.size, sizeTarget, 0.5);
       // rect.height = ease(this.size, sizeTarget, 0.5);
-      rect.rotation = ease(rect.rotation, rotationTarget, 0.5);
+      rect.rotation = ease(rect.rotation, rotationTarget, 0.8);
     });
 
     this.render();
@@ -442,7 +445,7 @@ class Grid extends Base {
 //================================================================
 //================================================================
 const states = {
-  scene: 0
+  scene: 2
 };
 
 const setup = () => {
@@ -471,6 +474,7 @@ const setup = () => {
 
 PIXI.loader
   .add([
+    "./assets/border.png",
     "./assets/straight.png",
     "./assets/line.png",
     "./assets/circle.png",
