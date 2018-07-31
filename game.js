@@ -396,6 +396,7 @@ class CurlingBall {
     brush1.x = 0;
     brush1.y = -400;
     this.brush1Container.addChild(brush1);
+    this.brush1 = brush1;
 
     this.brush2Container = new PIXI.Container();
     const brush2 = new PIXI.Sprite(
@@ -405,6 +406,7 @@ class CurlingBall {
     brush2.anchor.set(0.5);
     brush2.x = 0;
     brush2.y = -400;
+    this.brush2 = brush2;
     this.brush2Container.addChild(brush2);
     this.container.addChild(this.brush1Container);
     this.container.addChild(this.brush2Container);
@@ -1198,7 +1200,7 @@ function setup() {
 
   // ===================
 
-  loop(() => {
+  loop((time, delta) => {
     states.balls.forEach(ball => {
       if (states.game.launched && ball.isPlayer && !states.control.gameover) {
         ball.brush1Container.visible = true;
@@ -1223,6 +1225,9 @@ function setup() {
       // TODO
       player.brush1Container.rotation += 0.01;
       player.brush2Container.rotation -= 0.01;
+
+      player.brush1.x = 100 * Math.sin(time / 100);
+      player.brush2.x = 100 * Math.sin(time / 100);
 
       if (player.bodyClone.speed !== null) {
         const sp = player.speedContainer;
