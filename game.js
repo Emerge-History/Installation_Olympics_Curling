@@ -198,7 +198,7 @@ function checkForNewGame() {
       vm.$data.gaming = false;
       states.control.angle = 0;
 
-      states.scene = random(0,2)
+      states.scene = random(0, 1);
 
       var tempArray = [];
       for (var i = 0; i < states.balls.length; i++) {
@@ -634,11 +634,13 @@ function setup() {
       this.gravity = -40;
       this.dots = [];
       this.density = 80;
-  
+
       this.randomDots = [];
-  
+
       for (let i = 0; i < 5; i++) {
-        const sprite = new PIXI.Sprite(resources["./assets/circle.png"].texture);
+        const sprite = new PIXI.Sprite(
+          resources["./assets/circle.png"].texture
+        );
         sprite.anchor.set(0.5);
         const input = {
           pos: new Vec2(random(100, width - 100), random(500, height - 500)),
@@ -652,7 +654,7 @@ function setup() {
         this.randomDots.push(input);
         this.container.addChild(sprite);
       }
-  
+
       const layer = new PIXI.display.Layer();
       layer.useRenderTexture = true;
       layer.useDoubleBuffer = true;
@@ -660,16 +662,16 @@ function setup() {
       layer.addChild(trailSprite);
       trailSprite.alpha = 0.4;
       const showLayer = new PIXI.Sprite(layer.getRenderTexture());
-  
+
       this.container.addChild(layer);
       this.container.addChild(showLayer);
-  
+
       this.particleContainer = new PIXI.particles.ParticleContainer(10000, {
         rotation: true,
         tint: true,
         scale: true
       });
-  
+
       layer.addChild(this.particleContainer);
       // create pool
       for (let i = 0; i < 3000; i++) {
@@ -692,7 +694,7 @@ function setup() {
           sprite.visible = true;
           const posX = Math.random() * width;
           const randomDots = this.randomDots;
-  
+
           const dot = {
             invincible: random(0, 8) === 0,
             t: Math.random() * 100 + 20,
@@ -720,20 +722,20 @@ function setup() {
                 this.sprite.visible = false;
               }
               this.color[1] = Math.abs(Math.sin(this.t));
-  
+
               const updateForce = (posArr, k) => {
                 for (let i = 0; i < posArr.length; i++) {
                   const input = posArr[i];
-  
+
                   const vector = new Vec2(input.x, input.y).subtract(this.pos);
                   const length = vector.length();
                   let F = k / Math.pow(length, 2);
-                  F = Math.min(F, 1000)*100;
+                  F = Math.min(F, 1000) * 100;
                   const forceX = (vector.x / length) * F;
                   const forceY = (vector.y / length) * F;
                   this.pos.x -= forceX;
                   this.pos.y -= forceY;
-  
+
                   // const vector = this.pos
                   //   .clone()
                   //   .subtract(new Vec2(input.x, input.y));
@@ -746,23 +748,24 @@ function setup() {
                   // this.pos.y += forceY;
                 }
               };
-  
+
               if (!this.invincible) {
                 updateForce(inputs, 40000);
                 updateForce(randomDots.map(randomDot => randomDot.pos), 10000);
               }
-  
+
               this.sprite.x = (this.pos.clone().x + prevPos.x) / 2;
               this.sprite.y = (this.pos.clone().y + prevPos.y) / 2;
               const vector = prevPos.subtract(this.pos.clone());
-              this.sprite.rotation = Math.atan2(vector.y, vector.x) + Math.PI / 2;
+              this.sprite.rotation =
+                Math.atan2(vector.y, vector.x) + Math.PI / 2;
               this.sprite.height = this.size * (vector.length() / 10);
               this.sprite.tint = this.color[0];
               this.sprite.alpha = this.color[1];
               this.sprite.width = this.size * 0.8;
             }
           };
-  
+
           this.dots.push(dot);
           break;
         }
@@ -770,7 +773,7 @@ function setup() {
     }
     update(delta) {
       this.t += delta;
-  
+
       this.randomDots.forEach(randomDot => {
         randomDot.pos.x += (randomDot.direction[0] * randomDot.speed) / 10;
         randomDot.pos.y += (randomDot.direction[1] * randomDot.speed) / 10;
@@ -789,8 +792,12 @@ function setup() {
         randomDot.sprite.x = randomDot.pos.x;
         randomDot.sprite.y = randomDot.pos.y;
       });
-  
-      for (let i = 0; i < Math.round((-this.gravity / 100) * this.density); i++) {
+
+      for (
+        let i = 0;
+        i < Math.round((-this.gravity / 100) * this.density);
+        i++
+      ) {
         this.createDot();
       }
       this.dots = this.dots.filter(dot => dot.alive);
@@ -1222,8 +1229,8 @@ function setup() {
 
       var x1 = player.container.x - width / 2;
       var y1 = player.container.y - height;
-      
-      var temp2 = radToDeg(Math.atan2(y1,x1))+90;
+
+      var temp2 = radToDeg(Math.atan2(y1, x1)) + 90;
 
       player.angleText.text = `角度 ${temp2.toFixed(2)}°`;
 
