@@ -2,7 +2,7 @@ const { app, BrowserWindow } = require("electron");
 
 const { exec } = require("child_process");
 
-exec('"em-pipe"', (err, stdout, stderr) => {
+exec('"em-pipe" -p 8888', (err, stdout, stderr) => {
   if (err) {
     console.error(err);
     return;
@@ -40,7 +40,7 @@ function createWindow() {
     webContents.setLayoutZoomLevelLimits(0, 0);
   });
 
-  mainWindow.loadURL("http://localhost:8080/controller.html");
+  mainWindow.loadURL("http://localhost:8888/controller.html");
 
   mainWindow.on("closed", function() {
     mainWindow = null;

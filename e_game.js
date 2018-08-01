@@ -29,7 +29,7 @@ function createWindow() {
     webContents.setLayoutZoomLevelLimits(0, 0);
   });
 
-  mainWindow.loadURL("http://192.168.1.209:8080/game.html");
+  mainWindow.loadURL("http://192.168.1.209:8888/game.html");
 
   mainWindow.on("closed", function() {
     mainWindow = null;
