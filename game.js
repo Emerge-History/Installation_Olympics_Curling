@@ -227,6 +227,7 @@ function checkForNewGame() {
 
 sock.on("state", d => {
   states.control = d.control;
+  // states.joystick = d.joystick;
 });
 
 function loop(updateFunction) {
